@@ -1,0 +1,3 @@
+schema: greentic.operala.flow.v1
+name: ingest-transaction
+next: reconcile-one

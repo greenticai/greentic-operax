@@ -1,0 +1,16 @@
+{
+  "schema": "greentic.operala.handoff.v1",
+  "capability": "reconciliation",
+  "extension": "greentic.operala.reconciliation.v1",
+  "sorx": {
+    "transport": "http",
+    "url": "runtime-provided"
+  },
+  "actions": [
+    {
+      "id": "record_rent_payment",
+      "version": "0.1.0",
+      "contract_hash": "sha256:0000000000000000000000000000000000000000000000000000000000000000"
+    }
+  ]
+}

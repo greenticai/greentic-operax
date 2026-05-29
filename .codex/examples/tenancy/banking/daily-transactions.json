@@ -1,0 +1,27 @@
+{
+  "source": "bank_daily_export",
+  "date": "2026-06-02",
+  "transactions": [
+    {
+      "transaction_id": "bank_tx_001",
+      "booked_at": "2026-06-02",
+      "amount": 1250.0,
+      "currency": "GBP",
+      "reference": "TEN-001 June Rent"
+    },
+    {
+      "transaction_id": "bank_tx_002",
+      "booked_at": "2026-06-02",
+      "amount": 1000.0,
+      "currency": "GBP",
+      "reference": "TEN-002 June Rent"
+    },
+    {
+      "transaction_id": "bank_tx_003",
+      "booked_at": "2026-06-02",
+      "amount": 777.0,
+      "currency": "GBP",
+      "reference": "Unknown payment"
+    }
+  ]
+}

@@ -1,0 +1,41 @@
+[workspace]
+members = [
+    "crates/operax-audit",
+    "crates/operax-cli",
+    "crates/operax-core",
+    "crates/operax-dispatch",
+    "crates/operax-pack-loader",
+    "crates/operax-policy",
+    "crates/operax-runtime",
+    "crates/operax-sorx-http",
+    "crates/operax-manager",
+]
+resolver = "3"
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+license = "MIT"
+repository = "https://github.com/greenticai/greentic-operax"
+homepage = "https://github.com/greenticai/greentic-operax"
+documentation = "https://docs.rs/greentic-operax"
+keywords = ["greentic"]
+categories = ["command-line-utilities"]
+
+[workspace.dependencies]
+clap = { version = "4.5", features = ["derive"] }
+operax-audit = { version = "0.1.0", path = "crates/operax-audit" }
+operax-core = { version = "0.1.0", path = "crates/operax-core" }
+operax-dispatch = { version = "0.1.0", path = "crates/operax-dispatch" }
+operax-pack-loader = { version = "0.1.0", path = "crates/operax-pack-loader" }
+operax-policy = { version = "0.1.0", path = "crates/operax-policy" }
+operax-runtime = { version = "0.1.0", path = "crates/operax-runtime" }
+operax-sorx-http = { version = "0.1.0", path = "crates/operax-sorx-http" }
+operax-manager = { version = "0.1.0", path = "crates/operax-manager" }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+serde_yaml = "0.9"
+sha2 = "0.11"
+tempfile = "3"
+zip = "8"
+greentic-pack = { package = "greentic-pack-lib", path = "../greentic-pack/crates/greentic-pack" }

@@ -1,0 +1,7 @@
+{
+  "transaction_id": "bank_tx_001",
+  "booked_at": "2026-06-02",
+  "amount": 1250.0,
+  "currency": "GBP",
+  "reference": "TEN-001 June Rent"
+}

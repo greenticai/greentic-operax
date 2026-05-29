@@ -1,0 +1,46 @@
+{
+  "Tenant": [
+    {
+      "tenant_id": "tenant_001",
+      "name": "John Smith"
+    },
+    {
+      "tenant_id": "tenant_002",
+      "name": "Mary Jones"
+    }
+  ],
+  "Tenancy": [
+    {
+      "tenancy_id": "ten_001",
+      "tenant_id": "tenant_001",
+      "tenancy_reference": "TEN-001",
+      "property": "Flat 1"
+    },
+    {
+      "tenancy_id": "ten_002",
+      "tenant_id": "tenant_002",
+      "tenancy_reference": "TEN-002",
+      "property": "Flat 2"
+    }
+  ],
+  "RentObligation": [
+    {
+      "obligation_id": "rent_001",
+      "tenancy_id": "ten_001",
+      "tenancy_reference": "TEN-001",
+      "expected_amount": 1250.0,
+      "due_date": "2026-06-01",
+      "status": "expected"
+    },
+    {
+      "obligation_id": "rent_002",
+      "tenancy_id": "ten_002",
+      "tenancy_reference": "TEN-002",
+      "expected_amount": 1250.0,
+      "due_date": "2026-06-01",
+      "status": "expected"
+    }
+  ],
+  "Payment": [],
+  "ReconciliationCase": []
+}

@@ -1,0 +1,20 @@
+name: Publish
+on:
+  workflow_dispatch:
+  push:
+    branches: [main, master]
+
+permissions:
+  contents: write
+  actions: write
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    outputs:
+      should_publish: "false"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - run: bash ci/local_check.sh
+      - run: echo "Publishing is disabled until OperaX crates are marked publishable."

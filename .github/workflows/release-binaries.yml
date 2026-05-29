@@ -1,0 +1,65 @@
+name: Release Binaries
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Optional vX.Y.Z tag to release when dispatching from a branch.
+        required: false
+        type: string
+
+permissions:
+  contents: write
+  packages: write
+
+concurrency:
+  group: release-binaries-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  dispatch-tag-release:
+    if: github.ref_type != 'tag'
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Dispatch release workflow on tag ref
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          requested_tag=""
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            requested_tag="${{ github.event.inputs.tag || '' }}"
+          fi
+
+          if [[ -n "$requested_tag" ]]; then
+            if [[ "$requested_tag" == v* ]]; then
+              tag="$requested_tag"
+            else
+              tag="v${requested_tag}"
+            fi
+          else
+            version="$(cargo metadata --no-deps --format-version 1 | python3 -c 'import json, sys; print(next(package["version"] for package in json.load(sys.stdin)["packages"] if package["name"] == "greentic-operax"))')"
+            tag="v${version}"
+          fi
+
+          if ! git ls-remote --exit-code --tags origin "refs/tags/${tag}" >/dev/null; then
+            echo "Expected release tag ${tag} was not found on origin." >&2
+            exit 1
+          fi
+
+          gh workflow run release-binaries.yml --ref "$tag"
+
+  release:
+    if: github.ref_type == 'tag'
+    uses: greenticai/.github/.github/workflows/release-binaries.yml@main
+    with:
+      package: greentic-operax
+      binary: greentic-operax
+    secrets: inherit

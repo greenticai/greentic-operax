@@ -1,0 +1,20 @@
+[package]
+name = "operax-runtime"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+documentation.workspace = true
+keywords.workspace = true
+categories.workspace = true
+publish = false
+
+[dependencies]
+operax-audit.workspace = true
+operax-core.workspace = true
+operax-dispatch.workspace = true
+operax-pack-loader.workspace = true
+operax-policy.workspace = true
+operax-sorx-http.workspace = true
+serde_json.workspace = true

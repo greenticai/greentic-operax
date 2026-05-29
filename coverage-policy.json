@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "global": {
+    "line_coverage_min": 60.0
+  },
+  "defaults": {
+    "per_file_line_coverage_min": 60.0
+  },
+  "exclusions": {
+    "files": [
+      "crates/operax-cli/src/main.rs"
+    ]
+  },
+  "per_file": {}
+}

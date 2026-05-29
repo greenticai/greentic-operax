@@ -1,0 +1,4 @@
+schema: greentic.operala.flow.v1
+name: ingest-daily-transactions
+split: transactions
+next: reconcile-one

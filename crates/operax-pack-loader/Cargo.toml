@@ -1,0 +1,23 @@
+[package]
+name = "operax-pack-loader"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+documentation.workspace = true
+keywords.workspace = true
+categories.workspace = true
+publish = false
+
+[dependencies]
+operax-core.workspace = true
+greentic-pack.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+serde_yaml.workspace = true
+sha2.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true
+zip.workspace = true

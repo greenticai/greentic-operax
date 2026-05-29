@@ -1,0 +1,153 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://greentic.ai/schemas/operax.decision.v1.json",
+  "title": "OperaX Decision Envelope v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "tenant",
+    "capability",
+    "input_id",
+    "outcome",
+    "confidence",
+    "proposed_actions",
+    "reasons"
+  ],
+  "properties": {
+    "schema": {
+      "const": "greentic.operax.decision.v1"
+    },
+    "tenant": {
+      "type": "string"
+    },
+    "team": {
+      "type": "string"
+    },
+    "capability": {
+      "type": "string"
+    },
+    "input_id": {
+      "type": "string"
+    },
+    "outcome": {
+      "type": "string"
+    },
+    "confidence": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 100
+    },
+    "matched_records": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "record",
+          "id"
+        ],
+        "properties": {
+          "record": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "score": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 100
+          }
+        }
+      }
+    },
+    "proposed_actions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "sorx_target",
+          "operation",
+          "values"
+        ],
+        "properties": {
+          "sorx_target": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "kind"
+            ],
+            "properties": {
+              "kind": {
+                "enum": [
+                  "business_action",
+                  "generated_route"
+                ]
+              },
+              "id": {
+                "type": "string"
+              },
+              "version": {
+                "type": "string"
+              },
+              "contract_hash": {
+                "type": "string",
+                "pattern": "^sha256:[a-f0-9]{64}$"
+              },
+              "endpoint_id": {
+                "type": "string"
+              },
+              "operation_id": {
+                "type": "string"
+              },
+              "method": {
+                "type": "string"
+              },
+              "path": {
+                "type": "string",
+                "pattern": "^/v1/agent/"
+              }
+            }
+          },
+          "operation": {
+            "enum": [
+              "dry_run",
+              "invoke"
+            ]
+          },
+          "values": {
+            "type": "object"
+          },
+          "idempotency_key": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "requires_approval": {
+      "type": "boolean"
+    },
+    "reasons": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "audit": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "sorla_source_digest": {
+          "type": "string",
+          "pattern": "^sha256:[a-f0-9]{64}$"
+        },
+        "operala_handoff_digest": {
+          "type": "string",
+          "pattern": "^sha256:[a-f0-9]{64}$"
+        }
+      }
+    }
+  }
+}

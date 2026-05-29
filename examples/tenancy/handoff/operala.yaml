@@ -1,0 +1,12 @@
+schema: greentic.operala.handoff.v1
+capability: reconciliation
+extension: greentic.operala.reconciliation.v1
+tenant_required: true
+team_optional: true
+sorla:
+  source_digest: sha256:0000000000000000000000000000000000000000000000000000000000000000
+  parser: greentic-sorla-lib
+  required_schema: greentic.sorla.v0.2
+sorx:
+  transport: http
+  url: runtime-provided

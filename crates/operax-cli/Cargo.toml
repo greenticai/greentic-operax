@@ -1,0 +1,45 @@
+[package]
+name = "greentic-operax"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+documentation.workspace = true
+keywords.workspace = true
+categories.workspace = true
+description = "CLI for the Greentic OperaX operational handoff runner."
+readme = "README.md"
+include = ["build.rs", "src/**", "i18n/**", "Cargo.toml", "README.md"]
+publish = false
+
+[package.metadata.binstall]
+pkg-url = "{ repo }/releases/download/v{ version }/{ name }-v{ version }-{ target }.{ archive-format }"
+bin-dir = "{ name }-v{ version }-{ target }"
+pkg-fmt = "tgz"
+bin = ["greentic-operax"]
+
+[[bin]]
+name = "greentic-operax"
+path = "src/main.rs"
+
+[lib]
+name = "operax_cli"
+path = "src/lib.rs"
+
+[dependencies]
+clap.workspace = true
+operax-audit.workspace = true
+operax-core.workspace = true
+operax-dispatch.workspace = true
+operax-manager.workspace = true
+operax-pack-loader.workspace = true
+operax-policy.workspace = true
+operax-runtime.workspace = true
+operax-sorx-http.workspace = true
+serde_json.workspace = true
+greentic-pack.workspace = true
+zip.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true
