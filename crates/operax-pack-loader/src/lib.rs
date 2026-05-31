@@ -3,6 +3,7 @@ use operax_core::{
     SchemaRegistry, SorxBinding, looks_secret_like, sha256_digest,
 };
 use serde_json::Value;
+use std::collections::BTreeMap;
 use std::fs;
 use std::path::Path;
 
@@ -57,14 +58,10 @@ fn load_handoff_dir(path: &Path) -> Result<OperationalPack> {
         ));
     }
 
-    let schema_names = collect_files(path.join("schemas"), "json")?
-        .into_iter()
-        .map(|path| {
-            path.file_name()
-                .and_then(|name| name.to_str())
-                .unwrap_or_default()
-                .to_string()
-        })
+    let schema_files = collect_files(path.join("schemas"), "json")?;
+    let schema_names = schema_files
+        .iter()
+        .map(|path| file_name(path))
         .collect::<Vec<_>>();
     if schema_names.is_empty() {
         return Err(OperaxError::new(
@@ -72,14 +69,17 @@ fn load_handoff_dir(path: &Path) -> Result<OperationalPack> {
             "handoff has no JSON schemas",
         ));
     }
+    let schema_documents = load_schema_documents(schema_files)?;
 
     let binding = binding_from_metadata(&metadata)?;
     Ok(OperationalPack {
         metadata,
+        handoff: handoff_json,
         flows,
         schemas: SchemaRegistry {
             names: schema_names,
         },
+        schema_documents,
         sorx_binding: binding,
         pack_digest: sha256_digest(&handoff_bytes),
         sorla_source_digest: sorla_digest_from_metadata(path, &metadata_bytes)?,
@@ -123,17 +123,15 @@ fn load_pilot_gtpack(path: &Path) -> Result<OperationalPack> {
             path: name.clone(),
         })
         .collect::<Vec<_>>();
-    let schema_names = pack_load
+    let schema_entries = pack_load
         .files
-        .keys()
-        .filter(|name| name.starts_with("assets/operala/schemas/") && name.ends_with(".json"))
-        .map(|name| {
-            Path::new(name)
-                .file_name()
-                .and_then(|stem| stem.to_str())
-                .unwrap_or_default()
-                .to_string()
-        })
+        .iter()
+        .filter(|(name, _)| name.starts_with("assets/operala/schemas/") && name.ends_with(".json"))
+        .map(|(name, bytes)| (name.clone(), bytes.clone()))
+        .collect::<Vec<_>>();
+    let schema_names = schema_entries
+        .iter()
+        .map(|(name, _)| file_name(Path::new(name)))
         .collect::<Vec<_>>();
 
     let metadata_bytes = metadata_bytes.ok_or_else(|| {
@@ -178,10 +176,12 @@ fn load_pilot_gtpack(path: &Path) -> Result<OperationalPack> {
             .and_then(|sorla| sorla.source_digest.clone())
             .unwrap_or_else(|| sha256_digest(&metadata_bytes)),
         metadata,
+        handoff: handoff_json,
         flows,
         schemas: SchemaRegistry {
             names: schema_names,
         },
+        schema_documents: load_schema_documents_from_bytes(schema_entries)?,
         pack_digest: sha256_digest(&bytes),
         handoff_digest: sha256_digest(&handoff_bytes),
     })
@@ -267,6 +267,35 @@ fn collect_files(dir: impl AsRef<Path>, suffix: &str) -> Result<Vec<std::path::P
     Ok(out)
 }
 
+fn file_name(path: &Path) -> String {
+    path.file_name()
+        .and_then(|name| name.to_str())
+        .unwrap_or_default()
+        .to_string()
+}
+
+fn load_schema_documents(paths: Vec<std::path::PathBuf>) -> Result<BTreeMap<String, Value>> {
+    let mut out = BTreeMap::new();
+    for path in paths {
+        let name = file_name(&path);
+        let bytes = fs::read(&path)?;
+        let value = serde_json::from_slice(&bytes)?;
+        out.insert(name, value);
+    }
+    Ok(out)
+}
+
+fn load_schema_documents_from_bytes(
+    entries: Vec<(String, Vec<u8>)>,
+) -> Result<BTreeMap<String, Value>> {
+    let mut out = BTreeMap::new();
+    for (path, bytes) in entries {
+        let value = serde_json::from_slice(&bytes)?;
+        out.insert(file_name(Path::new(&path)), value);
+    }
+    Ok(out)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -308,6 +337,10 @@ sorx:
         assert_eq!(pack.metadata.capability, "reconciliation");
         assert_eq!(pack.flows.len(), 1);
         assert_eq!(pack.schemas.names.len(), 1);
+        assert!(
+            pack.schema_documents
+                .contains_key("bank-transaction.schema.json")
+        );
     }
 
     #[test]

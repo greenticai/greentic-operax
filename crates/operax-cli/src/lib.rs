@@ -49,6 +49,9 @@ pub struct RunArgs {
     /// Optional team id.
     #[arg(long)]
     team: Option<String>,
+    /// SORX caller role header.
+    #[arg(long, default_value = "service")]
+    caller_role: String,
     /// Run without mutating SORX.
     #[arg(long)]
     dry_run: bool,
@@ -168,6 +171,7 @@ fn run_operax(args: RunArgs, locale: Option<String>) -> Result<()> {
             tenant: args.tenant,
             team: args.team,
             locale,
+            caller_role: Some(args.caller_role),
             input: input_json,
             dry_run: args.dry_run,
             audit_dir: args.audit_dir,
@@ -342,6 +346,7 @@ fn localize_run_subcommand(cmd: &mut clap::Command, catalog: &I18nCatalog) {
             ("sorx_url", "cli.run.option.sorx_url.help"),
             ("input", "cli.run.option.input.help"),
             ("team", "cli.run.option.team.help"),
+            ("caller_role", "cli.run.option.caller_role.help"),
             ("dry_run", "cli.run.option.dry_run.help"),
             ("audit_dir", "cli.run.option.audit_dir.help"),
             ("sorx_token_env", "cli.run.option.sorx_token_env.help"),

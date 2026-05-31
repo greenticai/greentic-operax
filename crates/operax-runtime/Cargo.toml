@@ -17,4 +17,5 @@ operax-dispatch.workspace = true
 operax-pack-loader.workspace = true
 operax-policy.workspace = true
 operax-sorx-http.workspace = true
+jsonschema.workspace = true
 serde_json.workspace = true

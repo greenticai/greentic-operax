@@ -39,3 +39,4 @@ sha2 = "0.11"
 tempfile = "3"
 zip = "8"
 greentic-pack = { package = "greentic-pack-lib", path = "../greentic-pack/crates/greentic-pack" }
+jsonschema = "0.46.5"

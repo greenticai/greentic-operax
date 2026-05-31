@@ -253,8 +253,10 @@ mod tests {
                     url: "runtime-provided".into(),
                 }),
             },
+            handoff: serde_json::json!({}),
             flows: Vec::new(),
             schemas: SchemaRegistry { names: Vec::new() },
+            schema_documents: Default::default(),
             sorx_binding: SorxBinding {
                 transport: "http".into(),
                 url: "runtime-provided".into(),

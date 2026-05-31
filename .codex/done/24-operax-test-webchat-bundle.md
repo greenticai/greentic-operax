@@ -173,3 +173,14 @@ Follow-up fix:
 - Injected WebChat cards now force absolute OperaX manager URLs such as
   `http://127.0.0.1:8797/v1/operax/manager/cards`, so browser-side card actions
   call OperaX instead of the WebChat server.
+- The WebChat bundle setup now uses the Greentic WebChat runtime tenant/team
+  (`demo` / `default`) while OperaX keeps the requested operational tenant/team
+  for processing. This keeps WebChat secrets available to the `demo` route.
+- The local OperaX manager now answers CORS preflight and includes local CORS
+  headers, allowing WebChat to call the live manager on a separate port.
+- Returned manager cards are normalized in the WebChat hook so follow-on actions
+  continue to use the live OperaX manager origin.
+- Browser verification with Playwright covered opening WebChat, opening the
+  dashboard, opening the JSON input card, pasting
+  `examples/tenancy/banking/daily-transactions.json`, and receiving the
+  three-decision dry-run result card.

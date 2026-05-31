@@ -3054,6 +3054,7 @@ dependencies = [
 name = "operax-runtime"
 version = "0.1.0"
 dependencies = [
+ "jsonschema",
  "operax-audit",
  "operax-core",
  "operax-dispatch",

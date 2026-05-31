@@ -13,6 +13,7 @@ pub struct SorxHealth {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct SorxRoute {
     pub endpoint_id: String,
+    pub operation_id: Option<String>,
     pub method: String,
     pub path: String,
 }
@@ -133,6 +134,10 @@ impl SorxClient for HttpSorxClient {
             .map(|route| {
                 Ok(SorxRoute {
                     endpoint_id: string_field(&route, "endpoint_id")?,
+                    operation_id: route
+                        .get("operation_id")
+                        .and_then(Value::as_str)
+                        .map(str::to_string),
                     method: string_field(&route, "method")?,
                     path: string_field(&route, "path")?,
                 })
@@ -241,6 +246,7 @@ impl SorxClient for MockSorxClient {
         self.calls.lock().unwrap().push("routes".into());
         Ok(vec![SorxRoute {
             endpoint_id: "reconciliation_case.create".into(),
+            operation_id: Some("reconciliation_case.create".into()),
             method: "POST".into(),
             path: "/v1/agent/reconciliation-cases/create".into(),
         }])
