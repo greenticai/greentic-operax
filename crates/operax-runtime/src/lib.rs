@@ -9,12 +9,15 @@ use operax_sorx_http::{SorxClient, action_to_business_call, action_to_generated_
 use serde_json::Value;
 use std::path::{Path, PathBuf};
 
+mod bulk_ingest;
+
 #[derive(Debug, Clone)]
 pub struct RunRequest {
     pub artifact: PathBuf,
     pub tenant: String,
     pub team: Option<String>,
     pub locale: Option<String>,
+    pub caller_role: Option<String>,
     pub input: Value,
     pub dry_run: bool,
     pub audit_dir: Option<PathBuf>,
@@ -46,6 +49,10 @@ pub fn run_pack_with_client<C: SorxClient>(
         request.locale,
         pack.pack_digest.clone(),
     )?;
+    let ctx = match request.caller_role {
+        Some(caller_role) => ctx.with_caller_role(caller_role)?,
+        None => ctx,
+    };
     run_loaded_pack(
         &pack,
         &ctx,
@@ -67,6 +74,17 @@ pub fn run_loaded_pack<C: SorxClient + ?Sized>(
     reject_secret_like_input(&input_json)?;
     let audit = JsonlAuditSink::new(audit_dir);
     audit.run_started(ctx)?;
+
+    let capability = pack
+        .handoff
+        .get("capability")
+        .and_then(Value::as_str)
+        .unwrap_or(pack.metadata.capability.as_str());
+    if capability == "bulk_ingest" {
+        let report = bulk_ingest::run_bulk_ingest(pack, ctx, input_json, dry_run, client)?;
+        audit.run_completed(ctx)?;
+        return Ok(report);
+    }
 
     let input = detect_input(&input_json)?;
     audit.write_event(
@@ -101,12 +119,12 @@ pub fn run_loaded_pack<C: SorxClient + ?Sized>(
         }
     }
 
-    let report = RunReport {
-        input_count: input.transaction_count(),
+    let report = RunReport::reconciliation(
+        input.transaction_count(),
         decisions,
         applied_actions,
         skipped_actions,
-    };
+    );
     audit.run_completed(ctx)?;
     Ok(report)
 }
