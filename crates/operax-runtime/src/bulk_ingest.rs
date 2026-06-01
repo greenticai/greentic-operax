@@ -922,6 +922,8 @@ mod tests {
                     transport: "http".into(),
                     url: "runtime-provided".into(),
                 }),
+                requires: Vec::new(),
+                consumes: Vec::new(),
             },
             handoff: json!({
                 "schema": "greentic.operala.handoff.v1",

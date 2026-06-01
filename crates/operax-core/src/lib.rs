@@ -128,6 +128,28 @@ pub struct OperaHandoffMetadata {
     pub sorla: Option<HandoffSorla>,
     #[serde(default)]
     pub sorx: Option<HandoffSorx>,
+    #[serde(default)]
+    pub requires: Vec<CapabilityRequirement>,
+    #[serde(default)]
+    pub consumes: Vec<EventSubscription>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct CapabilityRequirement {
+    pub id: String,
+    pub capability: String,
+    #[serde(default)]
+    pub metadata: Map<String, Value>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct EventSubscription {
+    pub id: String,
+    pub capability: String,
+    #[serde(default)]
+    pub mode: Option<String>,
+    #[serde(default)]
+    pub metadata: Map<String, Value>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -380,5 +402,57 @@ mod tests {
     fn detects_secret_like_values() {
         let value = serde_json::json!({"auth": {"client_secret": "plain"}});
         assert!(looks_secret_like(&value));
+    }
+
+    #[test]
+    fn metadata_defaults_capabilities_and_events() {
+        let metadata: OperaHandoffMetadata = serde_yaml::from_str(
+            r#"
+schema: greentic.operala.handoff.v1
+capability: reconciliation
+extension: greentic.operala.reconciliation.v1
+sorx:
+  transport: http
+  url: runtime-provided
+"#,
+        )
+        .unwrap();
+        assert!(metadata.requires.is_empty());
+        assert!(metadata.consumes.is_empty());
+    }
+
+    #[test]
+    fn metadata_parses_capabilities_and_events() {
+        let metadata: OperaHandoffMetadata = serde_yaml::from_str(
+            r#"
+schema: greentic.operala.handoff.v1
+capability: reconciliation
+extension: greentic.operala.reconciliation.v1
+sorx:
+  transport: http
+  url: runtime-provided
+requires:
+  - id: operax.needs.record-rent-payment
+    capability: cap://greentic/sorx/tenancy/v1/functions/record-rent-payment
+    metadata:
+      kind: business_function
+      action_id: record_rent_payment
+      version: "0.1.0"
+consumes:
+  - id: operax.subscribes.work-order-assigned
+    capability: cap://greentic/events/boiler-maintenance/v1/work-order-assigned
+    mode: shared
+    metadata:
+      kind: business_event_subscription
+"#,
+        )
+        .unwrap();
+        assert_eq!(metadata.requires.len(), 1);
+        assert_eq!(
+            metadata.requires[0].metadata["action_id"],
+            "record_rent_payment"
+        );
+        assert_eq!(metadata.consumes.len(), 1);
+        assert_eq!(metadata.consumes[0].mode.as_deref(), Some("shared"));
     }
 }

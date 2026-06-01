@@ -63,6 +63,42 @@ pub trait SorxClient {
     ) -> Result<Value>;
 }
 
+pub trait CapabilityClient {
+    fn invoke(
+        &self,
+        capability: &str,
+        operation: &str,
+        input: Value,
+        ctx: &OperaxContext,
+        idempotency_key: Option<&str>,
+    ) -> Result<Value>;
+}
+
+#[derive(Debug, Clone)]
+pub struct SorxCapabilityClient<'a, C: SorxClient + ?Sized> {
+    client: &'a C,
+}
+
+impl<'a, C: SorxClient + ?Sized> SorxCapabilityClient<'a, C> {
+    pub fn new(client: &'a C) -> Self {
+        Self { client }
+    }
+}
+
+impl<C: SorxClient + ?Sized> CapabilityClient for SorxCapabilityClient<'_, C> {
+    fn invoke(
+        &self,
+        capability: &str,
+        operation: &str,
+        input: Value,
+        ctx: &OperaxContext,
+        idempotency_key: Option<&str>,
+    ) -> Result<Value> {
+        let call = capability_business_action_call(capability, operation, input, idempotency_key)?;
+        self.client.invoke_business_action(ctx, call)
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct HttpSorxClient {
     base_url: String,
@@ -329,6 +365,78 @@ pub fn action_to_generated_route(action: &ProposedAction) -> Result<Option<Gener
     }
 }
 
+pub fn invoke_action_capability<C: CapabilityClient + ?Sized>(
+    client: &C,
+    ctx: &OperaxContext,
+    action: &ProposedAction,
+) -> Result<Option<Value>> {
+    let SorxTarget::BusinessAction {
+        id,
+        version,
+        contract_hash,
+    } = &action.sorx_target
+    else {
+        return Ok(None);
+    };
+    Ok(Some(client.invoke(
+        &business_action_capability(id, version),
+        id,
+        json!({
+            "action_ref": {
+                "version": version,
+                "contract_hash": contract_hash,
+            },
+            "values": action.values,
+        }),
+        ctx,
+        action.idempotency_key.as_deref(),
+    )?))
+}
+
+fn capability_business_action_call(
+    capability: &str,
+    operation: &str,
+    input: Value,
+    idempotency_key: Option<&str>,
+) -> Result<BusinessActionCall> {
+    let version = input
+        .pointer("/action_ref/version")
+        .and_then(Value::as_str)
+        .or_else(|| capability_version(capability))
+        .unwrap_or("0.1.0")
+        .to_string();
+    let contract_hash = input
+        .pointer("/action_ref/contract_hash")
+        .and_then(Value::as_str)
+        .unwrap_or("sha256:0000000000000000000000000000000000000000000000000000000000000000")
+        .to_string();
+    let values = input.get("values").cloned().unwrap_or(input);
+    Ok(BusinessActionCall {
+        id: operation.to_string(),
+        version,
+        contract_hash,
+        values,
+        idempotency_key: idempotency_key.map(str::to_string),
+    })
+}
+
+fn business_action_capability(id: &str, version: &str) -> String {
+    format!(
+        "cap://greentic/sorx/actions/{}/versions/{version}",
+        id.replace('_', "-")
+    )
+}
+
+fn capability_version(capability: &str) -> Option<&str> {
+    let mut parts = capability.split('/');
+    while let Some(part) = parts.next() {
+        if part == "versions" {
+            return parts.next();
+        }
+    }
+    None
+}
+
 fn business_action_body(action: &BusinessActionCall) -> Value {
     json!({
         "action_ref": {"contract_hash": action.contract_hash},
@@ -428,5 +536,81 @@ mod tests {
         };
         let call = action_to_business_call(&action).unwrap().unwrap();
         assert_eq!(call.id, "record_rent_payment");
+    }
+
+    #[test]
+    fn capability_adapter_invokes_business_action() {
+        let mock = MockSorxClient::default();
+        let capability = SorxCapabilityClient::new(&mock);
+        let ctx = OperaxContext::new("demo".into(), None, None, "sha256:x".into()).unwrap();
+
+        capability
+            .invoke(
+                "cap://greentic/sorx/actions/record-rent-payment/versions/0.2.0",
+                "record_rent_payment",
+                json!({
+                    "action_ref": {
+                        "version": "0.2.0",
+                        "contract_hash": "sha256:abc",
+                    },
+                    "values": {"amount": 1250},
+                }),
+                &ctx,
+                Some("bank_tx_001-record_rent_payment"),
+            )
+            .unwrap();
+
+        assert_eq!(
+            mock.calls.lock().unwrap().as_slice(),
+            ["invoke_business_action:record_rent_payment"]
+        );
+    }
+
+    #[test]
+    fn capability_call_preserves_action_reference() {
+        let call = capability_business_action_call(
+            "cap://greentic/sorx/actions/record-rent-payment/versions/0.2.0",
+            "record_rent_payment",
+            json!({
+                "action_ref": {
+                    "version": "0.2.0",
+                    "contract_hash": "sha256:abc",
+                },
+                "values": {"amount": 1250},
+            }),
+            Some("bank_tx_001-record_rent_payment"),
+        )
+        .unwrap();
+
+        assert_eq!(call.version, "0.2.0");
+        assert_eq!(call.contract_hash, "sha256:abc");
+        assert_eq!(call.values, json!({"amount": 1250}));
+        assert_eq!(
+            call.idempotency_key.as_deref(),
+            Some("bank_tx_001-record_rent_payment")
+        );
+    }
+
+    #[test]
+    fn action_capability_helper_skips_generated_routes() {
+        let mock = MockSorxClient::default();
+        let capability = SorxCapabilityClient::new(&mock);
+        let ctx = OperaxContext::new("demo".into(), None, None, "sha256:x".into()).unwrap();
+        let action = ProposedAction {
+            sorx_target: SorxTarget::GeneratedRoute {
+                endpoint_id: "case.create".into(),
+                operation_id: None,
+                method: "POST".into(),
+                path: "/v1/cases".into(),
+            },
+            operation: ActionOperation::Invoke,
+            values: serde_json::Map::new(),
+            idempotency_key: None,
+        };
+
+        let result = invoke_action_capability(&capability, &ctx, &action).unwrap();
+
+        assert!(result.is_none());
+        assert!(mock.calls.lock().unwrap().is_empty());
     }
 }

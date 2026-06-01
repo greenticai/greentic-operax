@@ -5,7 +5,10 @@ use operax_core::{
 use operax_dispatch::{detect_input, dispatch_reconciliation};
 use operax_pack_loader::load_operational_pack;
 use operax_policy::{PolicyOutcome, decide};
-use operax_sorx_http::{SorxClient, action_to_business_call, action_to_generated_route};
+use operax_sorx_http::{
+    SorxCapabilityClient, SorxClient, action_to_business_call, action_to_generated_route,
+    invoke_action_capability,
+};
 use serde_json::Value;
 use std::path::{Path, PathBuf};
 
@@ -141,9 +144,10 @@ pub fn apply_action<C: SorxClient + ?Sized>(
             }
         }
         ActionOperation::Invoke => {
-            if let Some(call) = action_to_business_call(action)? {
-                client.invoke_business_action(ctx, call)?;
-            } else if let Some(route) = action_to_generated_route(action)? {
+            let capability_client = SorxCapabilityClient::new(client);
+            if invoke_action_capability(&capability_client, ctx, action)?.is_none()
+                && let Some(route) = action_to_generated_route(action)?
+            {
                 client.invoke_generated_route(ctx, route)?;
             }
         }
@@ -198,6 +202,28 @@ mod tests {
         assert_eq!(
             client.calls.lock().unwrap().as_slice(),
             ["invoke_business_action:record_rent_payment"]
+        );
+    }
+
+    #[test]
+    fn generated_route_fallback_still_uses_sorx_client() {
+        let client = MockSorxClient::default();
+        let ctx = OperaxContext::new("demo".into(), None, None, "sha256:x".into()).unwrap();
+        let action = operax_core::ProposedAction {
+            sorx_target: operax_core::SorxTarget::GeneratedRoute {
+                endpoint_id: "reconciliation_case.create".into(),
+                operation_id: None,
+                method: "POST".into(),
+                path: "/v1/agent/reconciliation-cases/create".into(),
+            },
+            operation: ActionOperation::Invoke,
+            values: serde_json::Map::new(),
+            idempotency_key: None,
+        };
+        apply_action(&client, &ctx, &action).unwrap();
+        assert_eq!(
+            client.calls.lock().unwrap().as_slice(),
+            ["invoke_generated_route:/v1/agent/reconciliation-cases/create"]
         );
     }
 }

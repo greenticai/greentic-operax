@@ -544,6 +544,8 @@ mod tests {
                     transport: "http".into(),
                     url: "runtime-provided".into(),
                 }),
+                requires: Vec::new(),
+                consumes: Vec::new(),
             },
             handoff: serde_json::json!({}),
             flows: Vec::new(),
