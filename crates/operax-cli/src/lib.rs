@@ -50,7 +50,7 @@ pub struct RunArgs {
     #[arg(long)]
     team: Option<String>,
     /// SORX caller role header.
-    #[arg(long, default_value = "service")]
+    #[arg(long, default_value = "admin")]
     caller_role: String,
     /// Run without mutating SORX.
     #[arg(long)]
@@ -346,7 +346,6 @@ fn localize_run_subcommand(cmd: &mut clap::Command, catalog: &I18nCatalog) {
             ("sorx_url", "cli.run.option.sorx_url.help"),
             ("input", "cli.run.option.input.help"),
             ("team", "cli.run.option.team.help"),
-            ("caller_role", "cli.run.option.caller_role.help"),
             ("dry_run", "cli.run.option.dry_run.help"),
             ("audit_dir", "cli.run.option.audit_dir.help"),
             ("sorx_token_env", "cli.run.option.sorx_token_env.help"),
@@ -434,6 +433,27 @@ mod tests {
     }
 
     #[test]
+    fn run_defaults_to_so_rla_admin_caller_role() {
+        let cli = Cli::try_parse_from([
+            "greentic-operax",
+            "run",
+            "artifact",
+            "--tenant",
+            "demo",
+            "--sorx-url",
+            "http://127.0.0.1:8787",
+            "--input",
+            "input.json",
+        ])
+        .unwrap();
+
+        let Commands::Run(args) = cli.command else {
+            panic!("expected run command");
+        };
+        assert_eq!(args.caller_role, "admin");
+    }
+
+    #[test]
     fn localized_help_uses_requested_catalog() {
         let help = localized_help_for_args(
             "nl",
@@ -459,8 +479,10 @@ mod tests {
         assert!(help.contains("Argumenten:"));
         assert!(help.contains("Opties:"));
         assert!(help.contains("SORX-basis-URL."));
+        assert!(help.contains("SORX caller role header"));
         assert!(help.contains("OperaLa-overdrachtsmap"));
         assert!(help.contains("[standaard: SORX_TOKEN]"));
+        assert!(!help.contains("cli.run.option.caller_role.help"));
         assert!(!help.contains("Arguments:"));
     }
 

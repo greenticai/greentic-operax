@@ -21,7 +21,6 @@ struct ValidationOptions {
 #[derive(Debug, Clone)]
 struct Batch {
     batch_id: String,
-    dry_run: bool,
     records: BTreeMap<String, Vec<Map<String, Value>>>,
 }
 
@@ -39,6 +38,18 @@ struct PlannedOperation {
     action: String,
     record: Map<String, Value>,
     dependency_ids: Vec<String>,
+}
+
+struct ReportData {
+    status: &'static str,
+    dry_run: bool,
+    batch_id: Option<String>,
+    planned_counts: Map<String, Value>,
+    validation_errors: Vec<Value>,
+    plan: Vec<PlannedOperation>,
+    created_counts: Option<Map<String, Value>>,
+    completed_operations: Option<Vec<Value>>,
+    failed_operation: Option<Value>,
 }
 
 pub fn run_bulk_ingest<C: SorxClient + ?Sized>(
@@ -59,17 +70,17 @@ pub fn run_bulk_ingest<C: SorxClient + ?Sized>(
         Ok(batch) => batch,
         Err(error) => {
             errors.push(json!({"code": error.code, "message": error.message}));
-            return Ok(report(
-                "validation_failed",
-                cli_dry_run,
-                None,
-                Map::new(),
-                errors,
-                Vec::new(),
-                None,
-                None,
-                None,
-            ));
+            return Ok(report(ReportData {
+                status: "validation_failed",
+                dry_run: cli_dry_run,
+                batch_id: None,
+                planned_counts: Map::new(),
+                validation_errors: errors,
+                plan: Vec::new(),
+                created_counts: None,
+                completed_operations: None,
+                failed_operation: None,
+            }));
         }
     };
 
@@ -80,35 +91,35 @@ pub fn run_bulk_ingest<C: SorxClient + ?Sized>(
     let plan = build_plan(&bindings, &batch, &id_index, &mut errors);
     let plan = sort_plan(plan, &id_index, &mut errors);
     let planned_counts = planned_counts(&batch);
-    let dry_run = cli_dry_run || batch.dry_run;
+    let dry_run = cli_dry_run;
     let atomic = bindings.validation.atomic;
 
     if !errors.is_empty() {
-        return Ok(report(
-            "validation_failed",
+        return Ok(report(ReportData {
+            status: "validation_failed",
             dry_run,
-            Some(batch.batch_id),
+            batch_id: Some(batch.batch_id),
             planned_counts,
-            errors,
+            validation_errors: errors,
             plan,
-            None,
-            None,
-            None,
-        ));
+            created_counts: None,
+            completed_operations: None,
+            failed_operation: None,
+        }));
     }
 
     if dry_run {
-        return Ok(report(
-            "planned",
-            true,
-            Some(batch.batch_id),
+        return Ok(report(ReportData {
+            status: "planned",
+            dry_run: true,
+            batch_id: Some(batch.batch_id),
             planned_counts,
-            Vec::new(),
+            validation_errors: Vec::new(),
             plan,
-            None,
-            None,
-            None,
-        ));
+            created_counts: None,
+            completed_operations: None,
+            failed_operation: None,
+        }));
     }
 
     execute_plan(ctx, client, batch.batch_id, planned_counts, plan, atomic)
@@ -145,10 +156,6 @@ fn parse_batch(input: Value) -> Result<Batch> {
             OperaxError::new("invalid_batch_input", "batch_id must be a non-empty string")
         })?
         .to_string();
-    let dry_run = object
-        .get("dry_run")
-        .and_then(Value::as_bool)
-        .unwrap_or(false);
     let records = object
         .get("records")
         .and_then(Value::as_object)
@@ -177,7 +184,6 @@ fn parse_batch(input: Value) -> Result<Batch> {
 
     Ok(Batch {
         batch_id,
-        dry_run,
         records: parsed,
     })
 }
@@ -475,22 +481,22 @@ fn execute_plan<C: SorxClient + ?Sized>(
             Ok(response) => response,
             Err(error) => {
                 let failed = planned_operation_value(op);
-                return Ok(report(
-                    "partial_failure",
-                    false,
-                    Some(batch_id),
+                return Ok(report(ReportData {
+                    status: "partial_failure",
+                    dry_run: false,
+                    batch_id: Some(batch_id),
                     planned_counts,
-                    Vec::new(),
+                    validation_errors: Vec::new(),
                     plan,
-                    Some(created_counts),
-                    Some(completed),
-                    Some(json!({
+                    created_counts: Some(created_counts),
+                    completed_operations: Some(completed),
+                    failed_operation: Some(json!({
                         "operation": failed,
                         "error": {"code": error.code, "message": error.message},
                         "atomic_requested": atomic,
                         "rollback_performed": false,
                     })),
-                ));
+                }));
             }
         };
         *created_counts
@@ -506,17 +512,17 @@ fn execute_plan<C: SorxClient + ?Sized>(
         responses.push(response);
     }
 
-    let mut report = report(
-        "completed",
-        false,
-        Some(batch_id),
+    let mut report = report(ReportData {
+        status: "completed",
+        dry_run: false,
+        batch_id: Some(batch_id),
         planned_counts,
-        Vec::new(),
+        validation_errors: Vec::new(),
         plan,
-        Some(created_counts),
-        Some(completed),
-        None,
-    );
+        created_counts: Some(created_counts),
+        completed_operations: Some(completed),
+        failed_operation: None,
+    });
     report.sorx_responses = Some(responses);
     Ok(report)
 }
@@ -560,34 +566,29 @@ fn route_for_action<'a>(routes: &'a [SorxRoute], action: &str) -> Option<&'a Sor
         .find(|route| route.endpoint_id == action || route.operation_id.as_deref() == Some(action))
 }
 
-fn report(
-    status: &str,
-    dry_run: bool,
-    batch_id: Option<String>,
-    planned_counts: Map<String, Value>,
-    validation_errors: Vec<Value>,
-    plan: Vec<PlannedOperation>,
-    created_counts: Option<Map<String, Value>>,
-    completed_operations: Option<Vec<Value>>,
-    failed_operation: Option<Value>,
-) -> RunReport {
+fn report(data: ReportData) -> RunReport {
     RunReport {
-        status: Some(status.to_string()),
-        input_count: planned_counts
+        status: Some(data.status.to_string()),
+        input_count: data
+            .planned_counts
             .values()
             .filter_map(Value::as_u64)
             .sum::<u64>() as usize,
         decisions: Vec::new(),
-        applied_actions: completed_operations.as_ref().map(Vec::len).unwrap_or(0),
-        skipped_actions: if dry_run { plan.len() } else { 0 },
-        dry_run: Some(dry_run),
-        batch_id,
-        planned_counts: Some(planned_counts),
-        validation_errors,
-        planned_operations: Some(plan.iter().map(planned_operation_value).collect()),
-        created_counts,
-        completed_operations,
-        failed_operation,
+        applied_actions: data
+            .completed_operations
+            .as_ref()
+            .map(Vec::len)
+            .unwrap_or(0),
+        skipped_actions: if data.dry_run { data.plan.len() } else { 0 },
+        dry_run: Some(data.dry_run),
+        batch_id: data.batch_id,
+        planned_counts: Some(data.planned_counts),
+        validation_errors: data.validation_errors,
+        planned_operations: Some(data.plan.iter().map(planned_operation_value).collect()),
+        created_counts: data.created_counts,
+        completed_operations: data.completed_operations,
+        failed_operation: data.failed_operation,
         sorx_responses: None,
     }
 }
@@ -1047,7 +1048,7 @@ mod tests {
     }
 
     #[test]
-    fn allows_unknown_external_reference() {
+    fn ignores_payload_dry_run_without_cli_flag() {
         let client = MockSorxClient::default();
         let input = json!({
             "batch_id": "bulk_001",
@@ -1058,14 +1059,22 @@ mod tests {
             }
         });
         let report = run_bulk_ingest(&pack(), &ctx(), input, false, &client).unwrap();
-        assert_eq!(report.status.as_deref(), Some("planned"));
+        assert_eq!(report.status.as_deref(), Some("completed"));
         assert!(report.validation_errors.is_empty());
+        assert_eq!(
+            client.calls.lock().unwrap().as_slice(),
+            [
+                "routes",
+                "invoke_business_action:create_customer",
+                "invoke_business_action:create_invoice"
+            ]
+        );
     }
 
     #[test]
     fn dry_run_returns_dependency_order_without_sorx_calls() {
         let client = MockSorxClient::default();
-        let report = run_bulk_ingest(&pack(), &ctx(), valid_batch(true), false, &client).unwrap();
+        let report = run_bulk_ingest(&pack(), &ctx(), valid_batch(false), true, &client).unwrap();
         assert_eq!(report.status.as_deref(), Some("planned"));
         let operations = report.planned_operations.unwrap();
         assert_eq!(operations[0]["collection"], "customer");

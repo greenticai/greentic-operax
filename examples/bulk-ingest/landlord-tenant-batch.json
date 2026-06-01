@@ -1216,665 +1216,760 @@
         "tenant_id": "tenant_001",
         "unit_id": "unit_001",
         "building_id": "building_001",
-        "start_date": "2026-06-01"
+        "start_date": "2026-06-01",
+        "status": "active"
       },
       {
         "id": "tenancy_002",
         "tenant_id": "tenant_002",
         "unit_id": "unit_002",
         "building_id": "building_001",
-        "start_date": "2026-06-01"
+        "start_date": "2026-06-01",
+        "status": "active"
       },
       {
         "id": "tenancy_003",
         "tenant_id": "tenant_003",
         "unit_id": "unit_003",
         "building_id": "building_001",
-        "start_date": "2026-06-01"
+        "start_date": "2026-06-01",
+        "status": "active"
       },
       {
         "id": "tenancy_004",
         "tenant_id": "tenant_004",
         "unit_id": "unit_004",
         "building_id": "building_001",
-        "start_date": "2026-06-01"
+        "start_date": "2026-06-01",
+        "status": "active"
       },
       {
         "id": "tenancy_005",
         "tenant_id": "tenant_005",
         "unit_id": "unit_005",
         "building_id": "building_001",
-        "start_date": "2026-06-01"
+        "start_date": "2026-06-01",
+        "status": "active"
       },
       {
         "id": "tenancy_006",
         "tenant_id": "tenant_006",
         "unit_id": "unit_006",
         "building_id": "building_001",
-        "start_date": "2026-06-01"
+        "start_date": "2026-06-01",
+        "status": "active"
       },
       {
         "id": "tenancy_007",
         "tenant_id": "tenant_007",
         "unit_id": "unit_007",
         "building_id": "building_001",
-        "start_date": "2026-06-01"
+        "start_date": "2026-06-01",
+        "status": "active"
       },
       {
         "id": "tenancy_008",
         "tenant_id": "tenant_008",
         "unit_id": "unit_008",
         "building_id": "building_001",
-        "start_date": "2026-06-01"
+        "start_date": "2026-06-01",
+        "status": "active"
       },
       {
         "id": "tenancy_009",
         "tenant_id": "tenant_009",
         "unit_id": "unit_009",
         "building_id": "building_001",
-        "start_date": "2026-06-01"
+        "start_date": "2026-06-01",
+        "status": "active"
       },
       {
         "id": "tenancy_010",
         "tenant_id": "tenant_010",
         "unit_id": "unit_010",
         "building_id": "building_001",
-        "start_date": "2026-06-01"
+        "start_date": "2026-06-01",
+        "status": "active"
       },
       {
         "id": "tenancy_011",
         "tenant_id": "tenant_011",
         "unit_id": "unit_011",
         "building_id": "building_001",
-        "start_date": "2026-06-01"
+        "start_date": "2026-06-01",
+        "status": "active"
       },
       {
         "id": "tenancy_012",
         "tenant_id": "tenant_012",
         "unit_id": "unit_012",
         "building_id": "building_001",
-        "start_date": "2026-06-01"
+        "start_date": "2026-06-01",
+        "status": "active"
       },
       {
         "id": "tenancy_013",
         "tenant_id": "tenant_013",
         "unit_id": "unit_013",
         "building_id": "building_001",
-        "start_date": "2026-06-01"
+        "start_date": "2026-06-01",
+        "status": "active"
       },
       {
         "id": "tenancy_014",
         "tenant_id": "tenant_014",
         "unit_id": "unit_014",
         "building_id": "building_001",
-        "start_date": "2026-06-01"
+        "start_date": "2026-06-01",
+        "status": "active"
       },
       {
         "id": "tenancy_015",
         "tenant_id": "tenant_015",
         "unit_id": "unit_015",
         "building_id": "building_001",
-        "start_date": "2026-06-01"
+        "start_date": "2026-06-01",
+        "status": "active"
       },
       {
         "id": "tenancy_016",
         "tenant_id": "tenant_016",
         "unit_id": "unit_016",
         "building_id": "building_001",
-        "start_date": "2026-06-01"
+        "start_date": "2026-06-01",
+        "status": "active"
       },
       {
         "id": "tenancy_017",
         "tenant_id": "tenant_017",
         "unit_id": "unit_017",
         "building_id": "building_001",
-        "start_date": "2026-06-01"
+        "start_date": "2026-06-01",
+        "status": "active"
       },
       {
         "id": "tenancy_018",
         "tenant_id": "tenant_018",
         "unit_id": "unit_018",
         "building_id": "building_001",
-        "start_date": "2026-06-01"
+        "start_date": "2026-06-01",
+        "status": "active"
       },
       {
         "id": "tenancy_019",
         "tenant_id": "tenant_019",
         "unit_id": "unit_019",
         "building_id": "building_001",
-        "start_date": "2026-06-01"
+        "start_date": "2026-06-01",
+        "status": "active"
       },
       {
         "id": "tenancy_020",
         "tenant_id": "tenant_020",
         "unit_id": "unit_020",
         "building_id": "building_001",
-        "start_date": "2026-06-01"
+        "start_date": "2026-06-01",
+        "status": "active"
       },
       {
         "id": "tenancy_021",
         "tenant_id": "tenant_021",
         "unit_id": "unit_021",
         "building_id": "building_002",
-        "start_date": "2026-06-01"
+        "start_date": "2026-06-01",
+        "status": "active"
       },
       {
         "id": "tenancy_022",
         "tenant_id": "tenant_022",
         "unit_id": "unit_022",
         "building_id": "building_002",
-        "start_date": "2026-06-01"
+        "start_date": "2026-06-01",
+        "status": "active"
       },
       {
         "id": "tenancy_023",
         "tenant_id": "tenant_023",
         "unit_id": "unit_023",
         "building_id": "building_002",
-        "start_date": "2026-06-01"
+        "start_date": "2026-06-01",
+        "status": "active"
       },
       {
         "id": "tenancy_024",
         "tenant_id": "tenant_024",
         "unit_id": "unit_024",
         "building_id": "building_002",
-        "start_date": "2026-06-01"
+        "start_date": "2026-06-01",
+        "status": "active"
       },
       {
         "id": "tenancy_025",
         "tenant_id": "tenant_025",
         "unit_id": "unit_025",
         "building_id": "building_002",
-        "start_date": "2026-06-01"
+        "start_date": "2026-06-01",
+        "status": "active"
       },
       {
         "id": "tenancy_026",
         "tenant_id": "tenant_026",
         "unit_id": "unit_026",
         "building_id": "building_002",
-        "start_date": "2026-06-01"
+        "start_date": "2026-06-01",
+        "status": "active"
       },
       {
         "id": "tenancy_027",
         "tenant_id": "tenant_027",
         "unit_id": "unit_027",
         "building_id": "building_002",
-        "start_date": "2026-06-01"
+        "start_date": "2026-06-01",
+        "status": "active"
       },
       {
         "id": "tenancy_028",
         "tenant_id": "tenant_028",
         "unit_id": "unit_028",
         "building_id": "building_002",
-        "start_date": "2026-06-01"
+        "start_date": "2026-06-01",
+        "status": "active"
       },
       {
         "id": "tenancy_029",
         "tenant_id": "tenant_029",
         "unit_id": "unit_029",
         "building_id": "building_002",
-        "start_date": "2026-06-01"
+        "start_date": "2026-06-01",
+        "status": "active"
       },
       {
         "id": "tenancy_030",
         "tenant_id": "tenant_030",
         "unit_id": "unit_030",
         "building_id": "building_002",
-        "start_date": "2026-06-01"
+        "start_date": "2026-06-01",
+        "status": "active"
       },
       {
         "id": "tenancy_031",
         "tenant_id": "tenant_031",
         "unit_id": "unit_031",
         "building_id": "building_002",
-        "start_date": "2026-06-01"
+        "start_date": "2026-06-01",
+        "status": "active"
       },
       {
         "id": "tenancy_032",
         "tenant_id": "tenant_032",
         "unit_id": "unit_032",
         "building_id": "building_002",
-        "start_date": "2026-06-01"
+        "start_date": "2026-06-01",
+        "status": "active"
       },
       {
         "id": "tenancy_033",
         "tenant_id": "tenant_033",
         "unit_id": "unit_033",
         "building_id": "building_002",
-        "start_date": "2026-06-01"
+        "start_date": "2026-06-01",
+        "status": "active"
       },
       {
         "id": "tenancy_034",
         "tenant_id": "tenant_034",
         "unit_id": "unit_034",
         "building_id": "building_002",
-        "start_date": "2026-06-01"
+        "start_date": "2026-06-01",
+        "status": "active"
       },
       {
         "id": "tenancy_035",
         "tenant_id": "tenant_035",
         "unit_id": "unit_035",
         "building_id": "building_002",
-        "start_date": "2026-06-01"
+        "start_date": "2026-06-01",
+        "status": "active"
       },
       {
         "id": "tenancy_036",
         "tenant_id": "tenant_036",
         "unit_id": "unit_036",
         "building_id": "building_002",
-        "start_date": "2026-06-01"
+        "start_date": "2026-06-01",
+        "status": "active"
       },
       {
         "id": "tenancy_037",
         "tenant_id": "tenant_037",
         "unit_id": "unit_037",
         "building_id": "building_002",
-        "start_date": "2026-06-01"
+        "start_date": "2026-06-01",
+        "status": "active"
       },
       {
         "id": "tenancy_038",
         "tenant_id": "tenant_038",
         "unit_id": "unit_038",
         "building_id": "building_002",
-        "start_date": "2026-06-01"
+        "start_date": "2026-06-01",
+        "status": "active"
       },
       {
         "id": "tenancy_039",
         "tenant_id": "tenant_039",
         "unit_id": "unit_039",
         "building_id": "building_002",
-        "start_date": "2026-06-01"
+        "start_date": "2026-06-01",
+        "status": "active"
       },
       {
         "id": "tenancy_040",
         "tenant_id": "tenant_040",
         "unit_id": "unit_040",
         "building_id": "building_002",
-        "start_date": "2026-06-01"
+        "start_date": "2026-06-01",
+        "status": "active"
       },
       {
         "id": "tenancy_041",
         "tenant_id": "tenant_041",
         "unit_id": "unit_041",
         "building_id": "building_003",
-        "start_date": "2026-06-01"
+        "start_date": "2026-06-01",
+        "status": "active"
       },
       {
         "id": "tenancy_042",
         "tenant_id": "tenant_042",
         "unit_id": "unit_042",
         "building_id": "building_003",
-        "start_date": "2026-06-01"
+        "start_date": "2026-06-01",
+        "status": "active"
       },
       {
         "id": "tenancy_043",
         "tenant_id": "tenant_043",
         "unit_id": "unit_043",
         "building_id": "building_003",
-        "start_date": "2026-06-01"
+        "start_date": "2026-06-01",
+        "status": "active"
       },
       {
         "id": "tenancy_044",
         "tenant_id": "tenant_044",
         "unit_id": "unit_044",
         "building_id": "building_003",
-        "start_date": "2026-06-01"
+        "start_date": "2026-06-01",
+        "status": "active"
       },
       {
         "id": "tenancy_045",
         "tenant_id": "tenant_045",
         "unit_id": "unit_045",
         "building_id": "building_003",
-        "start_date": "2026-06-01"
+        "start_date": "2026-06-01",
+        "status": "active"
       },
       {
         "id": "tenancy_046",
         "tenant_id": "tenant_046",
         "unit_id": "unit_046",
         "building_id": "building_003",
-        "start_date": "2026-06-01"
+        "start_date": "2026-06-01",
+        "status": "active"
       },
       {
         "id": "tenancy_047",
         "tenant_id": "tenant_047",
         "unit_id": "unit_047",
         "building_id": "building_003",
-        "start_date": "2026-06-01"
+        "start_date": "2026-06-01",
+        "status": "active"
       },
       {
         "id": "tenancy_048",
         "tenant_id": "tenant_048",
         "unit_id": "unit_048",
         "building_id": "building_003",
-        "start_date": "2026-06-01"
+        "start_date": "2026-06-01",
+        "status": "active"
       },
       {
         "id": "tenancy_049",
         "tenant_id": "tenant_049",
         "unit_id": "unit_049",
         "building_id": "building_003",
-        "start_date": "2026-06-01"
+        "start_date": "2026-06-01",
+        "status": "active"
       },
       {
         "id": "tenancy_050",
         "tenant_id": "tenant_050",
         "unit_id": "unit_050",
         "building_id": "building_003",
-        "start_date": "2026-06-01"
+        "start_date": "2026-06-01",
+        "status": "active"
       },
       {
         "id": "tenancy_051",
         "tenant_id": "tenant_051",
         "unit_id": "unit_051",
         "building_id": "building_003",
-        "start_date": "2026-06-01"
+        "start_date": "2026-06-01",
+        "status": "active"
       },
       {
         "id": "tenancy_052",
         "tenant_id": "tenant_052",
         "unit_id": "unit_052",
         "building_id": "building_003",
-        "start_date": "2026-06-01"
+        "start_date": "2026-06-01",
+        "status": "active"
       },
       {
         "id": "tenancy_053",
         "tenant_id": "tenant_053",
         "unit_id": "unit_053",
         "building_id": "building_003",
-        "start_date": "2026-06-01"
+        "start_date": "2026-06-01",
+        "status": "active"
       },
       {
         "id": "tenancy_054",
         "tenant_id": "tenant_054",
         "unit_id": "unit_054",
         "building_id": "building_003",
-        "start_date": "2026-06-01"
+        "start_date": "2026-06-01",
+        "status": "active"
       },
       {
         "id": "tenancy_055",
         "tenant_id": "tenant_055",
         "unit_id": "unit_055",
         "building_id": "building_003",
-        "start_date": "2026-06-01"
+        "start_date": "2026-06-01",
+        "status": "active"
       },
       {
         "id": "tenancy_056",
         "tenant_id": "tenant_056",
         "unit_id": "unit_056",
         "building_id": "building_003",
-        "start_date": "2026-06-01"
+        "start_date": "2026-06-01",
+        "status": "active"
       },
       {
         "id": "tenancy_057",
         "tenant_id": "tenant_057",
         "unit_id": "unit_057",
         "building_id": "building_003",
-        "start_date": "2026-06-01"
+        "start_date": "2026-06-01",
+        "status": "active"
       },
       {
         "id": "tenancy_058",
         "tenant_id": "tenant_058",
         "unit_id": "unit_058",
         "building_id": "building_003",
-        "start_date": "2026-06-01"
+        "start_date": "2026-06-01",
+        "status": "active"
       },
       {
         "id": "tenancy_059",
         "tenant_id": "tenant_059",
         "unit_id": "unit_059",
         "building_id": "building_003",
-        "start_date": "2026-06-01"
+        "start_date": "2026-06-01",
+        "status": "active"
       },
       {
         "id": "tenancy_060",
         "tenant_id": "tenant_060",
         "unit_id": "unit_060",
         "building_id": "building_003",
-        "start_date": "2026-06-01"
+        "start_date": "2026-06-01",
+        "status": "active"
       },
       {
         "id": "tenancy_061",
         "tenant_id": "tenant_061",
         "unit_id": "unit_061",
         "building_id": "building_004",
-        "start_date": "2026-06-01"
+        "start_date": "2026-06-01",
+        "status": "active"
       },
       {
         "id": "tenancy_062",
         "tenant_id": "tenant_062",
         "unit_id": "unit_062",
         "building_id": "building_004",
-        "start_date": "2026-06-01"
+        "start_date": "2026-06-01",
+        "status": "active"
       },
       {
         "id": "tenancy_063",
         "tenant_id": "tenant_063",
         "unit_id": "unit_063",
         "building_id": "building_004",
-        "start_date": "2026-06-01"
+        "start_date": "2026-06-01",
+        "status": "active"
       },
       {
         "id": "tenancy_064",
         "tenant_id": "tenant_064",
         "unit_id": "unit_064",
         "building_id": "building_004",
-        "start_date": "2026-06-01"
+        "start_date": "2026-06-01",
+        "status": "active"
       },
       {
         "id": "tenancy_065",
         "tenant_id": "tenant_065",
         "unit_id": "unit_065",
         "building_id": "building_004",
-        "start_date": "2026-06-01"
+        "start_date": "2026-06-01",
+        "status": "active"
       },
       {
         "id": "tenancy_066",
         "tenant_id": "tenant_066",
         "unit_id": "unit_066",
         "building_id": "building_004",
-        "start_date": "2026-06-01"
+        "start_date": "2026-06-01",
+        "status": "active"
       },
       {
         "id": "tenancy_067",
         "tenant_id": "tenant_067",
         "unit_id": "unit_067",
         "building_id": "building_004",
-        "start_date": "2026-06-01"
+        "start_date": "2026-06-01",
+        "status": "active"
       },
       {
         "id": "tenancy_068",
         "tenant_id": "tenant_068",
         "unit_id": "unit_068",
         "building_id": "building_004",
-        "start_date": "2026-06-01"
+        "start_date": "2026-06-01",
+        "status": "active"
       },
       {
         "id": "tenancy_069",
         "tenant_id": "tenant_069",
         "unit_id": "unit_069",
         "building_id": "building_004",
-        "start_date": "2026-06-01"
+        "start_date": "2026-06-01",
+        "status": "active"
       },
       {
         "id": "tenancy_070",
         "tenant_id": "tenant_070",
         "unit_id": "unit_070",
         "building_id": "building_004",
-        "start_date": "2026-06-01"
+        "start_date": "2026-06-01",
+        "status": "active"
       },
       {
         "id": "tenancy_071",
         "tenant_id": "tenant_071",
         "unit_id": "unit_071",
         "building_id": "building_004",
-        "start_date": "2026-06-01"
+        "start_date": "2026-06-01",
+        "status": "active"
       },
       {
         "id": "tenancy_072",
         "tenant_id": "tenant_072",
         "unit_id": "unit_072",
         "building_id": "building_004",
-        "start_date": "2026-06-01"
+        "start_date": "2026-06-01",
+        "status": "active"
       },
       {
         "id": "tenancy_073",
         "tenant_id": "tenant_073",
         "unit_id": "unit_073",
         "building_id": "building_004",
-        "start_date": "2026-06-01"
+        "start_date": "2026-06-01",
+        "status": "active"
       },
       {
         "id": "tenancy_074",
         "tenant_id": "tenant_074",
         "unit_id": "unit_074",
         "building_id": "building_004",
-        "start_date": "2026-06-01"
+        "start_date": "2026-06-01",
+        "status": "active"
       },
       {
         "id": "tenancy_075",
         "tenant_id": "tenant_075",
         "unit_id": "unit_075",
         "building_id": "building_004",
-        "start_date": "2026-06-01"
+        "start_date": "2026-06-01",
+        "status": "active"
       },
       {
         "id": "tenancy_076",
         "tenant_id": "tenant_076",
         "unit_id": "unit_076",
         "building_id": "building_004",
-        "start_date": "2026-06-01"
+        "start_date": "2026-06-01",
+        "status": "active"
       },
       {
         "id": "tenancy_077",
         "tenant_id": "tenant_077",
         "unit_id": "unit_077",
         "building_id": "building_004",
-        "start_date": "2026-06-01"
+        "start_date": "2026-06-01",
+        "status": "active"
       },
       {
         "id": "tenancy_078",
         "tenant_id": "tenant_078",
         "unit_id": "unit_078",
         "building_id": "building_004",
-        "start_date": "2026-06-01"
+        "start_date": "2026-06-01",
+        "status": "active"
       },
       {
         "id": "tenancy_079",
         "tenant_id": "tenant_079",
         "unit_id": "unit_079",
         "building_id": "building_004",
-        "start_date": "2026-06-01"
+        "start_date": "2026-06-01",
+        "status": "active"
       },
       {
         "id": "tenancy_080",
         "tenant_id": "tenant_080",
         "unit_id": "unit_080",
         "building_id": "building_004",
-        "start_date": "2026-06-01"
+        "start_date": "2026-06-01",
+        "status": "active"
       },
       {
         "id": "tenancy_081",
         "tenant_id": "tenant_081",
         "unit_id": "unit_081",
         "building_id": "building_005",
-        "start_date": "2026-06-01"
+        "start_date": "2026-06-01",
+        "status": "active"
       },
       {
         "id": "tenancy_082",
         "tenant_id": "tenant_082",
         "unit_id": "unit_082",
         "building_id": "building_005",
-        "start_date": "2026-06-01"
+        "start_date": "2026-06-01",
+        "status": "active"
       },
       {
         "id": "tenancy_083",
         "tenant_id": "tenant_083",
         "unit_id": "unit_083",
         "building_id": "building_005",
-        "start_date": "2026-06-01"
+        "start_date": "2026-06-01",
+        "status": "active"
       },
       {
         "id": "tenancy_084",
         "tenant_id": "tenant_084",
         "unit_id": "unit_084",
         "building_id": "building_005",
-        "start_date": "2026-06-01"
+        "start_date": "2026-06-01",
+        "status": "active"
       },
       {
         "id": "tenancy_085",
         "tenant_id": "tenant_085",
         "unit_id": "unit_085",
         "building_id": "building_005",
-        "start_date": "2026-06-01"
+        "start_date": "2026-06-01",
+        "status": "active"
       },
       {
         "id": "tenancy_086",
         "tenant_id": "tenant_086",
         "unit_id": "unit_086",
         "building_id": "building_005",
-        "start_date": "2026-06-01"
+        "start_date": "2026-06-01",
+        "status": "active"
       },
       {
         "id": "tenancy_087",
         "tenant_id": "tenant_087",
         "unit_id": "unit_087",
         "building_id": "building_005",
-        "start_date": "2026-06-01"
+        "start_date": "2026-06-01",
+        "status": "active"
       },
       {
         "id": "tenancy_088",
         "tenant_id": "tenant_088",
         "unit_id": "unit_088",
         "building_id": "building_005",
-        "start_date": "2026-06-01"
+        "start_date": "2026-06-01",
+        "status": "active"
       },
       {
         "id": "tenancy_089",
         "tenant_id": "tenant_089",
         "unit_id": "unit_089",
         "building_id": "building_005",
-        "start_date": "2026-06-01"
+        "start_date": "2026-06-01",
+        "status": "active"
       },
       {
         "id": "tenancy_090",
         "tenant_id": "tenant_090",
         "unit_id": "unit_090",
         "building_id": "building_005",
-        "start_date": "2026-06-01"
+        "start_date": "2026-06-01",
+        "status": "active"
       },
       {
         "id": "tenancy_091",
         "tenant_id": "tenant_091",
         "unit_id": "unit_091",
         "building_id": "building_005",
-        "start_date": "2026-06-01"
+        "start_date": "2026-06-01",
+        "status": "active"
       },
       {
         "id": "tenancy_092",
         "tenant_id": "tenant_092",
         "unit_id": "unit_092",
         "building_id": "building_005",
-        "start_date": "2026-06-01"
+        "start_date": "2026-06-01",
+        "status": "active"
       },
       {
         "id": "tenancy_093",
         "tenant_id": "tenant_093",
         "unit_id": "unit_093",
         "building_id": "building_005",
-        "start_date": "2026-06-01"
+        "start_date": "2026-06-01",
+        "status": "active"
       },
       {
         "id": "tenancy_094",
         "tenant_id": "tenant_094",
         "unit_id": "unit_094",
         "building_id": "building_005",
-        "start_date": "2026-06-01"
+        "start_date": "2026-06-01",
+        "status": "active"
       },
       {
         "id": "tenancy_095",
         "tenant_id": "tenant_095",
         "unit_id": "unit_095",
         "building_id": "building_005",
-        "start_date": "2026-06-01"
+        "start_date": "2026-06-01",
+        "status": "active"
       }
     ],
     "payment": [
@@ -1882,1681 +1977,1961 @@
         "id": "payment_001",
         "tenancy_id": "tenancy_001",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_002",
         "tenancy_id": "tenancy_002",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_003",
         "tenancy_id": "tenancy_003",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_004",
         "tenancy_id": "tenancy_004",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_005",
         "tenancy_id": "tenancy_005",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_006",
         "tenancy_id": "tenancy_006",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_007",
         "tenancy_id": "tenancy_007",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_008",
         "tenancy_id": "tenancy_008",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_009",
         "tenancy_id": "tenancy_009",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_010",
         "tenancy_id": "tenancy_010",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_011",
         "tenancy_id": "tenancy_011",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_012",
         "tenancy_id": "tenancy_012",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_013",
         "tenancy_id": "tenancy_013",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_014",
         "tenancy_id": "tenancy_014",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_015",
         "tenancy_id": "tenancy_015",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_016",
         "tenancy_id": "tenancy_016",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_017",
         "tenancy_id": "tenancy_017",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_018",
         "tenancy_id": "tenancy_018",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_019",
         "tenancy_id": "tenancy_019",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_020",
         "tenancy_id": "tenancy_020",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_021",
         "tenancy_id": "tenancy_021",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_022",
         "tenancy_id": "tenancy_022",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_023",
         "tenancy_id": "tenancy_023",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_024",
         "tenancy_id": "tenancy_024",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_025",
         "tenancy_id": "tenancy_025",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_026",
         "tenancy_id": "tenancy_026",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_027",
         "tenancy_id": "tenancy_027",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_028",
         "tenancy_id": "tenancy_028",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_029",
         "tenancy_id": "tenancy_029",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_030",
         "tenancy_id": "tenancy_030",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_031",
         "tenancy_id": "tenancy_031",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_032",
         "tenancy_id": "tenancy_032",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_033",
         "tenancy_id": "tenancy_033",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_034",
         "tenancy_id": "tenancy_034",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_035",
         "tenancy_id": "tenancy_035",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_036",
         "tenancy_id": "tenancy_036",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_037",
         "tenancy_id": "tenancy_037",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_038",
         "tenancy_id": "tenancy_038",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_039",
         "tenancy_id": "tenancy_039",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_040",
         "tenancy_id": "tenancy_040",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_041",
         "tenancy_id": "tenancy_041",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_042",
         "tenancy_id": "tenancy_042",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_043",
         "tenancy_id": "tenancy_043",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_044",
         "tenancy_id": "tenancy_044",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_045",
         "tenancy_id": "tenancy_045",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_046",
         "tenancy_id": "tenancy_046",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_047",
         "tenancy_id": "tenancy_047",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_048",
         "tenancy_id": "tenancy_048",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_049",
         "tenancy_id": "tenancy_049",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_050",
         "tenancy_id": "tenancy_050",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_051",
         "tenancy_id": "tenancy_051",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_052",
         "tenancy_id": "tenancy_052",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_053",
         "tenancy_id": "tenancy_053",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_054",
         "tenancy_id": "tenancy_054",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_055",
         "tenancy_id": "tenancy_055",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_056",
         "tenancy_id": "tenancy_056",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_057",
         "tenancy_id": "tenancy_057",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_058",
         "tenancy_id": "tenancy_058",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_059",
         "tenancy_id": "tenancy_059",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_060",
         "tenancy_id": "tenancy_060",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_061",
         "tenancy_id": "tenancy_061",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_062",
         "tenancy_id": "tenancy_062",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_063",
         "tenancy_id": "tenancy_063",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_064",
         "tenancy_id": "tenancy_064",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_065",
         "tenancy_id": "tenancy_065",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_066",
         "tenancy_id": "tenancy_066",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_067",
         "tenancy_id": "tenancy_067",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_068",
         "tenancy_id": "tenancy_068",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_069",
         "tenancy_id": "tenancy_069",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_070",
         "tenancy_id": "tenancy_070",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_071",
         "tenancy_id": "tenancy_071",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_072",
         "tenancy_id": "tenancy_072",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_073",
         "tenancy_id": "tenancy_073",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_074",
         "tenancy_id": "tenancy_074",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_075",
         "tenancy_id": "tenancy_075",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_076",
         "tenancy_id": "tenancy_076",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_077",
         "tenancy_id": "tenancy_077",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_078",
         "tenancy_id": "tenancy_078",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_079",
         "tenancy_id": "tenancy_079",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_080",
         "tenancy_id": "tenancy_080",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_081",
         "tenancy_id": "tenancy_081",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_082",
         "tenancy_id": "tenancy_082",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_083",
         "tenancy_id": "tenancy_083",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_084",
         "tenancy_id": "tenancy_084",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_085",
         "tenancy_id": "tenancy_085",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_086",
         "tenancy_id": "tenancy_086",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_087",
         "tenancy_id": "tenancy_087",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_088",
         "tenancy_id": "tenancy_088",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_089",
         "tenancy_id": "tenancy_089",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_090",
         "tenancy_id": "tenancy_090",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_091",
         "tenancy_id": "tenancy_091",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_092",
         "tenancy_id": "tenancy_092",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_093",
         "tenancy_id": "tenancy_093",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_094",
         "tenancy_id": "tenancy_094",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_095",
         "tenancy_id": "tenancy_095",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_096",
         "tenancy_id": "tenancy_001",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_097",
         "tenancy_id": "tenancy_002",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_098",
         "tenancy_id": "tenancy_003",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_099",
         "tenancy_id": "tenancy_004",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_100",
         "tenancy_id": "tenancy_005",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_101",
         "tenancy_id": "tenancy_006",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_102",
         "tenancy_id": "tenancy_007",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_103",
         "tenancy_id": "tenancy_008",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_104",
         "tenancy_id": "tenancy_009",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_105",
         "tenancy_id": "tenancy_010",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_106",
         "tenancy_id": "tenancy_011",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_107",
         "tenancy_id": "tenancy_012",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_108",
         "tenancy_id": "tenancy_013",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_109",
         "tenancy_id": "tenancy_014",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_110",
         "tenancy_id": "tenancy_015",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_111",
         "tenancy_id": "tenancy_016",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_112",
         "tenancy_id": "tenancy_017",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_113",
         "tenancy_id": "tenancy_018",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_114",
         "tenancy_id": "tenancy_019",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_115",
         "tenancy_id": "tenancy_020",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_116",
         "tenancy_id": "tenancy_021",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_117",
         "tenancy_id": "tenancy_022",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_118",
         "tenancy_id": "tenancy_023",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_119",
         "tenancy_id": "tenancy_024",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_120",
         "tenancy_id": "tenancy_025",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_121",
         "tenancy_id": "tenancy_026",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_122",
         "tenancy_id": "tenancy_027",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_123",
         "tenancy_id": "tenancy_028",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_124",
         "tenancy_id": "tenancy_029",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_125",
         "tenancy_id": "tenancy_030",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_126",
         "tenancy_id": "tenancy_031",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_127",
         "tenancy_id": "tenancy_032",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_128",
         "tenancy_id": "tenancy_033",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_129",
         "tenancy_id": "tenancy_034",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_130",
         "tenancy_id": "tenancy_035",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_131",
         "tenancy_id": "tenancy_036",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_132",
         "tenancy_id": "tenancy_037",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_133",
         "tenancy_id": "tenancy_038",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_134",
         "tenancy_id": "tenancy_039",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_135",
         "tenancy_id": "tenancy_040",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_136",
         "tenancy_id": "tenancy_041",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_137",
         "tenancy_id": "tenancy_042",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_138",
         "tenancy_id": "tenancy_043",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_139",
         "tenancy_id": "tenancy_044",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_140",
         "tenancy_id": "tenancy_045",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_141",
         "tenancy_id": "tenancy_046",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_142",
         "tenancy_id": "tenancy_047",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_143",
         "tenancy_id": "tenancy_048",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_144",
         "tenancy_id": "tenancy_049",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_145",
         "tenancy_id": "tenancy_050",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_146",
         "tenancy_id": "tenancy_051",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_147",
         "tenancy_id": "tenancy_052",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_148",
         "tenancy_id": "tenancy_053",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_149",
         "tenancy_id": "tenancy_054",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_150",
         "tenancy_id": "tenancy_055",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_151",
         "tenancy_id": "tenancy_056",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_152",
         "tenancy_id": "tenancy_057",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_153",
         "tenancy_id": "tenancy_058",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_154",
         "tenancy_id": "tenancy_059",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_155",
         "tenancy_id": "tenancy_060",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_156",
         "tenancy_id": "tenancy_061",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_157",
         "tenancy_id": "tenancy_062",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_158",
         "tenancy_id": "tenancy_063",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_159",
         "tenancy_id": "tenancy_064",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_160",
         "tenancy_id": "tenancy_065",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_161",
         "tenancy_id": "tenancy_066",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_162",
         "tenancy_id": "tenancy_067",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_163",
         "tenancy_id": "tenancy_068",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_164",
         "tenancy_id": "tenancy_069",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_165",
         "tenancy_id": "tenancy_070",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_166",
         "tenancy_id": "tenancy_071",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_167",
         "tenancy_id": "tenancy_072",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_168",
         "tenancy_id": "tenancy_073",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_169",
         "tenancy_id": "tenancy_074",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_170",
         "tenancy_id": "tenancy_075",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_171",
         "tenancy_id": "tenancy_076",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_172",
         "tenancy_id": "tenancy_077",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_173",
         "tenancy_id": "tenancy_078",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_174",
         "tenancy_id": "tenancy_079",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_175",
         "tenancy_id": "tenancy_080",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_176",
         "tenancy_id": "tenancy_081",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_177",
         "tenancy_id": "tenancy_082",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_178",
         "tenancy_id": "tenancy_083",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_179",
         "tenancy_id": "tenancy_084",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_180",
         "tenancy_id": "tenancy_085",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_181",
         "tenancy_id": "tenancy_086",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_182",
         "tenancy_id": "tenancy_087",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_183",
         "tenancy_id": "tenancy_088",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_184",
         "tenancy_id": "tenancy_089",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_185",
         "tenancy_id": "tenancy_090",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_186",
         "tenancy_id": "tenancy_091",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_187",
         "tenancy_id": "tenancy_092",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_188",
         "tenancy_id": "tenancy_093",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_189",
         "tenancy_id": "tenancy_094",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_190",
         "tenancy_id": "tenancy_095",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_191",
         "tenancy_id": "tenancy_001",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_192",
         "tenancy_id": "tenancy_002",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_193",
         "tenancy_id": "tenancy_003",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_194",
         "tenancy_id": "tenancy_004",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_195",
         "tenancy_id": "tenancy_005",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_196",
         "tenancy_id": "tenancy_006",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_197",
         "tenancy_id": "tenancy_007",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_198",
         "tenancy_id": "tenancy_008",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_199",
         "tenancy_id": "tenancy_009",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_200",
         "tenancy_id": "tenancy_010",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_201",
         "tenancy_id": "tenancy_011",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_202",
         "tenancy_id": "tenancy_012",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_203",
         "tenancy_id": "tenancy_013",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_204",
         "tenancy_id": "tenancy_014",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_205",
         "tenancy_id": "tenancy_015",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_206",
         "tenancy_id": "tenancy_016",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_207",
         "tenancy_id": "tenancy_017",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_208",
         "tenancy_id": "tenancy_018",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_209",
         "tenancy_id": "tenancy_019",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_210",
         "tenancy_id": "tenancy_020",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_211",
         "tenancy_id": "tenancy_021",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_212",
         "tenancy_id": "tenancy_022",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_213",
         "tenancy_id": "tenancy_023",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_214",
         "tenancy_id": "tenancy_024",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_215",
         "tenancy_id": "tenancy_025",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_216",
         "tenancy_id": "tenancy_026",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_217",
         "tenancy_id": "tenancy_027",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_218",
         "tenancy_id": "tenancy_028",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_219",
         "tenancy_id": "tenancy_029",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_220",
         "tenancy_id": "tenancy_030",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_221",
         "tenancy_id": "tenancy_031",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_222",
         "tenancy_id": "tenancy_032",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_223",
         "tenancy_id": "tenancy_033",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_224",
         "tenancy_id": "tenancy_034",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_225",
         "tenancy_id": "tenancy_035",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_226",
         "tenancy_id": "tenancy_036",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_227",
         "tenancy_id": "tenancy_037",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_228",
         "tenancy_id": "tenancy_038",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_229",
         "tenancy_id": "tenancy_039",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_230",
         "tenancy_id": "tenancy_040",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_231",
         "tenancy_id": "tenancy_041",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_232",
         "tenancy_id": "tenancy_042",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_233",
         "tenancy_id": "tenancy_043",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_234",
         "tenancy_id": "tenancy_044",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_235",
         "tenancy_id": "tenancy_045",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_236",
         "tenancy_id": "tenancy_046",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_237",
         "tenancy_id": "tenancy_047",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_238",
         "tenancy_id": "tenancy_048",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_239",
         "tenancy_id": "tenancy_049",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_240",
         "tenancy_id": "tenancy_050",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_241",
         "tenancy_id": "tenancy_051",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_242",
         "tenancy_id": "tenancy_052",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_243",
         "tenancy_id": "tenancy_053",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_244",
         "tenancy_id": "tenancy_054",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_245",
         "tenancy_id": "tenancy_055",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_246",
         "tenancy_id": "tenancy_056",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_247",
         "tenancy_id": "tenancy_057",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_248",
         "tenancy_id": "tenancy_058",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_249",
         "tenancy_id": "tenancy_059",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_250",
         "tenancy_id": "tenancy_060",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_251",
         "tenancy_id": "tenancy_061",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_252",
         "tenancy_id": "tenancy_062",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_253",
         "tenancy_id": "tenancy_063",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_254",
         "tenancy_id": "tenancy_064",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_255",
         "tenancy_id": "tenancy_065",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_256",
         "tenancy_id": "tenancy_066",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_257",
         "tenancy_id": "tenancy_067",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_258",
         "tenancy_id": "tenancy_068",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_259",
         "tenancy_id": "tenancy_069",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_260",
         "tenancy_id": "tenancy_070",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_261",
         "tenancy_id": "tenancy_071",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_262",
         "tenancy_id": "tenancy_072",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_263",
         "tenancy_id": "tenancy_073",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_264",
         "tenancy_id": "tenancy_074",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_265",
         "tenancy_id": "tenancy_075",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_266",
         "tenancy_id": "tenancy_076",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_267",
         "tenancy_id": "tenancy_077",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_268",
         "tenancy_id": "tenancy_078",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_269",
         "tenancy_id": "tenancy_079",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_270",
         "tenancy_id": "tenancy_080",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_271",
         "tenancy_id": "tenancy_081",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_272",
         "tenancy_id": "tenancy_082",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_273",
         "tenancy_id": "tenancy_083",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_274",
         "tenancy_id": "tenancy_084",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_275",
         "tenancy_id": "tenancy_085",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_276",
         "tenancy_id": "tenancy_086",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_277",
         "tenancy_id": "tenancy_087",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_278",
         "tenancy_id": "tenancy_088",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_279",
         "tenancy_id": "tenancy_089",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       },
       {
         "id": "payment_280",
         "tenancy_id": "tenancy_090",
         "amount": 1250,
-        "paid_on": "2026-06-01"
+        "paid_on": "2026-06-01",
+        "status": "settled"
       }
     ],
     "maintenance_request": [
@@ -3564,31 +3939,36 @@
         "id": "maintenance_request_001",
         "building_id": "building_001",
         "unit_id": "unit_001",
-        "summary": "Maintenance request 001"
+        "summary": "Maintenance request 001",
+        "status": "open"
       },
       {
         "id": "maintenance_request_002",
         "building_id": "building_001",
         "unit_id": "unit_002",
-        "summary": "Maintenance request 002"
+        "summary": "Maintenance request 002",
+        "status": "open"
       },
       {
         "id": "maintenance_request_003",
         "building_id": "building_001",
         "unit_id": "unit_003",
-        "summary": "Maintenance request 003"
+        "summary": "Maintenance request 003",
+        "status": "open"
       },
       {
         "id": "maintenance_request_004",
         "building_id": "building_001",
         "unit_id": "unit_004",
-        "summary": "Maintenance request 004"
+        "summary": "Maintenance request 004",
+        "status": "open"
       },
       {
         "id": "maintenance_request_005",
         "building_id": "building_001",
         "unit_id": "unit_005",
-        "summary": "Maintenance request 005"
+        "summary": "Maintenance request 005",
+        "status": "open"
       }
     ]
   }

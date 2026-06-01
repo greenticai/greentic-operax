@@ -13,7 +13,6 @@
   "cli.run.arg.artifact.help": "OperaLa handoff directory or pilot .gtpack artifact.",
   "cli.run.help.template": "{about}\n\nUsage: {usage}\n\nArguments and options:\n{all-args}",
   "cli.run.option.audit_dir.help": "Directory for audit.jsonl.",
-  "cli.run.option.caller_role.help": "SORX caller role header.",
   "cli.run.option.dry_run.help": "Run without mutating SORX.",
   "cli.run.option.input.help": "JSON input file to process.",
   "cli.run.option.json.help": "Emit the run report as JSON.",
