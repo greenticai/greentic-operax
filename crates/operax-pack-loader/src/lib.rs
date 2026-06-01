@@ -215,6 +215,22 @@ fn validate_metadata(metadata: &OperaHandoffMetadata) -> Result<()> {
             "SORX binding must use transport=http and url=runtime-provided",
         ));
     }
+    for requirement in &metadata.requires {
+        if requirement.id.trim().is_empty() || requirement.capability.trim().is_empty() {
+            return Err(OperaxError::new(
+                "invalid_capability_requirement",
+                "requires entries must include id and capability",
+            ));
+        }
+    }
+    for subscription in &metadata.consumes {
+        if subscription.id.trim().is_empty() || subscription.capability.trim().is_empty() {
+            return Err(OperaxError::new(
+                "invalid_event_subscription",
+                "consumes entries must include id and capability",
+            ));
+        }
+    }
     Ok(())
 }
 
@@ -340,6 +356,47 @@ sorx:
         assert!(
             pack.schema_documents
                 .contains_key("bank-transaction.schema.json")
+        );
+    }
+
+    #[test]
+    fn discovers_capabilities_and_event_subscriptions() {
+        let temp = tempfile::tempdir().unwrap();
+        write_handoff(temp.path());
+        fs::write(
+            temp.path().join("operala.yaml"),
+            r#"
+schema: greentic.operala.handoff.v1
+capability: reconciliation
+extension: greentic.operala.reconciliation.v1
+tenant_required: true
+sorx:
+  transport: http
+  url: runtime-provided
+requires:
+  - id: operax.needs.record-rent-payment
+    capability: cap://greentic/sorx/tenancy/v1/functions/record-rent-payment
+    metadata:
+      kind: business_function
+      action_id: record_rent_payment
+      version: "0.1.0"
+consumes:
+  - id: operax.subscribes.work-order-assigned
+    capability: cap://greentic/events/boiler-maintenance/v1/work-order-assigned
+    mode: shared
+    metadata:
+      kind: business_event_subscription
+"#,
+        )
+        .unwrap();
+
+        let pack = load_operational_pack(temp.path()).unwrap();
+
+        assert_eq!(pack.metadata.requires.len(), 1);
+        assert_eq!(pack.metadata.consumes.len(), 1);
+        assert_eq!(
+            pack.metadata.requires[0].metadata["action_id"],
+            "record_rent_payment"
         );
     }
 
