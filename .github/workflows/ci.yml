@@ -16,6 +16,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Checkout greentic-pack dependency
+        uses: actions/checkout@v4
+        with:
+          repository: greenticai/greentic-pack
+          path: .greentic-deps/greentic-pack
+      - name: Link greentic-pack dependency
+        run: ln -s "$GITHUB_WORKSPACE/.greentic-deps/greentic-pack" "$GITHUB_WORKSPACE/../greentic-pack"
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt, clippy
