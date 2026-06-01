@@ -1,6 +1,7 @@
 use operax_audit::JsonlAuditSink;
 use operax_core::{
-    ActionOperation, OperationalPack, OperaxContext, OperaxError, Result, RunReport,
+    ActionOperation, OperaHandoffMetadata, OperationalPack, OperaxContext, OperaxError, Result,
+    RunReport,
 };
 use operax_dispatch::{detect_input, dispatch_reconciliation};
 use operax_pack_loader::load_operational_pack;
@@ -114,7 +115,7 @@ pub fn run_loaded_pack<C: SorxClient + ?Sized>(
                     audit.action_skipped(ctx, action)?;
                 }
                 PolicyOutcome::AutoApply => {
-                    apply_action(client, ctx, action)?;
+                    apply_pack_action(client, ctx, action, &pack.metadata)?;
                     applied_actions += 1;
                     audit.action_applied(ctx, action)?;
                 }
@@ -137,6 +138,15 @@ pub fn apply_action<C: SorxClient + ?Sized>(
     ctx: &OperaxContext,
     action: &operax_core::ProposedAction,
 ) -> Result<()> {
+    apply_pack_action(client, ctx, action, &default_metadata())
+}
+
+fn apply_pack_action<C: SorxClient + ?Sized>(
+    client: &C,
+    ctx: &OperaxContext,
+    action: &operax_core::ProposedAction,
+    metadata: &OperaHandoffMetadata,
+) -> Result<()> {
     match action.operation {
         ActionOperation::DryRun => {
             if let Some(call) = action_to_business_call(action)? {
@@ -145,7 +155,10 @@ pub fn apply_action<C: SorxClient + ?Sized>(
         }
         ActionOperation::Invoke => {
             let capability_client = SorxCapabilityClient::new(client);
-            if invoke_action_capability(&capability_client, ctx, action)?.is_none()
+            let declared_capability =
+                declared_business_action_capability(metadata, &action.sorx_target);
+            if invoke_action_capability(&capability_client, ctx, action, declared_capability)?
+                .is_none()
                 && let Some(route) = action_to_generated_route(action)?
             {
                 client.invoke_generated_route(ctx, route)?;
@@ -153,6 +166,31 @@ pub fn apply_action<C: SorxClient + ?Sized>(
         }
     }
     Ok(())
+}
+
+fn declared_business_action_capability<'a>(
+    metadata: &'a OperaHandoffMetadata,
+    target: &operax_core::SorxTarget,
+) -> Option<&'a str> {
+    let operax_core::SorxTarget::BusinessAction { id, .. } = target else {
+        return None;
+    };
+    metadata.business_function_capability_for_action(id)
+}
+
+fn default_metadata() -> OperaHandoffMetadata {
+    OperaHandoffMetadata {
+        schema: "greentic.operala.handoff.v1".into(),
+        capability: "unknown".into(),
+        extension: "unknown".into(),
+        tenant_required: false,
+        team_optional: false,
+        team_required: false,
+        sorla: None,
+        sorx: None,
+        requires: Vec::new(),
+        consumes: Vec::new(),
+    }
 }
 
 fn reject_secret_like_input(input: &Value) -> Result<()> {
@@ -168,6 +206,7 @@ fn reject_secret_like_input(input: &Value) -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use operax_core::{CapabilityRequirement, EventSubscription, HandoffSorx};
     use operax_sorx_http::MockSorxClient;
 
     #[test]
@@ -224,6 +263,42 @@ mod tests {
         assert_eq!(
             client.calls.lock().unwrap().as_slice(),
             ["invoke_generated_route:/v1/agent/reconciliation-cases/create"]
+        );
+    }
+
+    #[test]
+    fn declared_capability_is_discovered_for_business_action() {
+        let metadata = OperaHandoffMetadata {
+            schema: "greentic.operala.handoff.v1".into(),
+            capability: "reconciliation".into(),
+            extension: "greentic.operala.reconciliation.v1".into(),
+            tenant_required: true,
+            team_optional: true,
+            team_required: false,
+            sorla: None,
+            sorx: Some(HandoffSorx {
+                transport: "http".into(),
+                url: "runtime-provided".into(),
+            }),
+            requires: vec![CapabilityRequirement {
+                id: "operax.needs.record-rent-payment".into(),
+                capability: "cap://greentic/sorx/tenancy/v1/functions/record-rent-payment".into(),
+                metadata: serde_json::Map::from_iter([
+                    ("kind".into(), serde_json::json!("business_function")),
+                    ("action_id".into(), serde_json::json!("record_rent_payment")),
+                ]),
+            }],
+            consumes: Vec::<EventSubscription>::new(),
+        };
+        let target = operax_core::SorxTarget::BusinessAction {
+            id: "record_rent_payment".into(),
+            version: "0.1.0".into(),
+            contract_hash: "sha256:x".into(),
+        };
+
+        assert_eq!(
+            declared_business_action_capability(&metadata, &target),
+            Some("cap://greentic/sorx/tenancy/v1/functions/record-rent-payment")
         );
     }
 }

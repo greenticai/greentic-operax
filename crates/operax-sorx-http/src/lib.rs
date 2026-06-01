@@ -369,6 +369,7 @@ pub fn invoke_action_capability<C: CapabilityClient + ?Sized>(
     client: &C,
     ctx: &OperaxContext,
     action: &ProposedAction,
+    declared_capability: Option<&str>,
 ) -> Result<Option<Value>> {
     let SorxTarget::BusinessAction {
         id,
@@ -378,8 +379,9 @@ pub fn invoke_action_capability<C: CapabilityClient + ?Sized>(
     else {
         return Ok(None);
     };
+    let fallback_capability = business_action_capability(id, version);
     Ok(Some(client.invoke(
-        &business_action_capability(id, version),
+        declared_capability.unwrap_or(&fallback_capability),
         id,
         json!({
             "action_ref": {
@@ -608,7 +610,7 @@ mod tests {
             idempotency_key: None,
         };
 
-        let result = invoke_action_capability(&capability, &ctx, &action).unwrap();
+        let result = invoke_action_capability(&capability, &ctx, &action, None).unwrap();
 
         assert!(result.is_none());
         assert!(mock.calls.lock().unwrap().is_empty());

@@ -10,3 +10,19 @@ sorla:
 sorx:
   transport: http
   url: runtime-provided
+requires:
+  - id: operax.needs.reconciliation.record-rent-payment
+    capability: cap://greentic/sorx/tenancy/v1/functions/record-rent-payment
+    metadata:
+      kind: business_function
+      action_id: record_rent_payment
+      version: "0.1.0"
+consumes:
+  - id: operax.subscribes.tenancy.payment-recorded
+    capability: cap://greentic/events/tenancy/v1/payment-recorded
+    mode: shared
+    metadata:
+      kind: business_event_subscription
+      handler:
+        component_ref: operax:tenancy-reconciliation:v1
+        operation: on_payment_recorded

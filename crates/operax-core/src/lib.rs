@@ -134,6 +134,23 @@ pub struct OperaHandoffMetadata {
     pub consumes: Vec<EventSubscription>,
 }
 
+impl OperaHandoffMetadata {
+    pub fn business_function_capability_for_action(&self, action_id: &str) -> Option<&str> {
+        self.requires
+            .iter()
+            .find(|requirement| {
+                requirement.metadata.get("kind").and_then(Value::as_str)
+                    == Some("business_function")
+                    && requirement
+                        .metadata
+                        .get("action_id")
+                        .and_then(Value::as_str)
+                        == Some(action_id)
+            })
+            .map(|requirement| requirement.capability.as_str())
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct CapabilityRequirement {
     pub id: String,
@@ -454,5 +471,13 @@ consumes:
         );
         assert_eq!(metadata.consumes.len(), 1);
         assert_eq!(metadata.consumes[0].mode.as_deref(), Some("shared"));
+        assert_eq!(
+            metadata.business_function_capability_for_action("record_rent_payment"),
+            Some("cap://greentic/sorx/tenancy/v1/functions/record-rent-payment")
+        );
+        assert_eq!(
+            metadata.business_function_capability_for_action("unknown_action"),
+            None
+        );
     }
 }
