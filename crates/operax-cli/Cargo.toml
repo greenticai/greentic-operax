@@ -32,6 +32,7 @@ clap.workspace = true
 operax-audit.workspace = true
 operax-core.workspace = true
 operax-dispatch.workspace = true
+operax-event-bridge.workspace = true
 operax-manager.workspace = true
 operax-pack-loader.workspace = true
 operax-policy.workspace = true
@@ -40,6 +41,10 @@ operax-sorx-http.workspace = true
 serde_json.workspace = true
 greentic-pack.workspace = true
 zip.workspace = true
+anyhow = "1"
+async-nats = "0.46"
+async-trait = "0.1"
+tokio = { version = "1", features = ["rt", "rt-multi-thread", "macros"] }
 
 [dev-dependencies]
 tempfile.workspace = true
