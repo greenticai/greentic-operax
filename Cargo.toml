@@ -4,6 +4,7 @@ members = [
     "crates/operax-cli",
     "crates/operax-core",
     "crates/operax-dispatch",
+    "crates/operax-event-bridge",
     "crates/operax-pack-loader",
     "crates/operax-policy",
     "crates/operax-runtime",
@@ -27,6 +28,7 @@ clap = { version = "4.5", features = ["derive"] }
 operax-audit = { version = "0.1.0", path = "crates/operax-audit" }
 operax-core = { version = "0.1.0", path = "crates/operax-core" }
 operax-dispatch = { version = "0.1.0", path = "crates/operax-dispatch" }
+operax-event-bridge = { version = "0.1.0", path = "crates/operax-event-bridge" }
 operax-pack-loader = { version = "0.1.0", path = "crates/operax-pack-loader" }
 operax-policy = { version = "0.1.0", path = "crates/operax-policy" }
 operax-runtime = { version = "0.1.0", path = "crates/operax-runtime" }

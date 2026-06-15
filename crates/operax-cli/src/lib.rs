@@ -8,6 +8,7 @@ use std::fs;
 use std::path::PathBuf;
 use std::process::ExitCode;
 
+mod event_bridge_invoker;
 mod test_runtime;
 
 #[derive(Debug, Parser)]
@@ -31,6 +32,8 @@ pub enum Commands {
     Run(RunArgs),
     /// Start a local OperaX manager for testing a handoff artifact.
     Test(TestArgs),
+    /// Serve a handoff artifact over the NATS event bridge (operala.call dispatch).
+    Serve(ServeArgs),
 }
 
 #[derive(Debug, Parser)]
@@ -105,6 +108,28 @@ pub struct TestArgs {
     sorx_token_env: String,
 }
 
+#[derive(Debug, Parser)]
+pub struct ServeArgs {
+    /// OperaLa handoff directory or pilot .gtpack artifact to serve.
+    artifact: PathBuf,
+    /// SORX base URL used when actions are applied.
+    #[arg(long, default_value = "http://127.0.0.1:8088")]
+    sorx_url: String,
+    /// Default tenant id (currently overridden per-dispatch by the NATS header).
+    #[arg(long)]
+    tenant: Option<String>,
+    /// Default team id, used when a dispatch carries no target.
+    #[arg(long)]
+    team: Option<String>,
+    /// Plan without mutating SORX. Defaults to true so no live SORX is required;
+    /// pass `--dry-run false` (or `--no-dry-run`) to apply real mutations.
+    #[arg(long, default_value_t = true, action = clap::ArgAction::Set)]
+    dry_run: bool,
+    /// Environment variable containing the SORX token.
+    #[arg(long, default_value = "SORX_TOKEN")]
+    sorx_token_env: String,
+}
+
 pub fn run<I, T>(args: I) -> ExitCode
 where
     I: IntoIterator<Item = T>,
@@ -152,6 +177,7 @@ fn dispatch(cli: Cli) -> Result<()> {
             run_operax(args, cli.locale)
         }
         Commands::Test(args) => run_test_manager(args, cli.locale),
+        Commands::Serve(args) => run_serve_mode(args),
     }
 }
 
@@ -192,6 +218,90 @@ fn run_operax(args: RunArgs, locale: Option<String>) -> Result<()> {
                 .replace("{skipped_actions}", &report.skipped_actions.to_string())
         );
     }
+    Ok(())
+}
+
+/// Environment variable that, when set, enables the NATS event bridge.
+const EVENTS_NATS_URL_ENV: &str = "GREENTIC_EVENTS_NATS_URL";
+
+/// Serve a handoff artifact over the NATS event bridge.
+///
+/// When `GREENTIC_EVENTS_NATS_URL` is set, the bridge runs on its own
+/// multi-threaded tokio runtime inside a dedicated OS thread (the CLI itself is
+/// synchronous) and serves `greentic.operala.request.v1` forever. The serve
+/// process blocks on that thread so it stays alive while the bridge runs.
+///
+/// When the variable is unset there is nothing to serve, so we print a message
+/// and exit successfully.
+fn run_serve_mode(args: ServeArgs) -> Result<()> {
+    let nats_url = match std::env::var(EVENTS_NATS_URL_ENV) {
+        Ok(url) if !url.trim().is_empty() => url,
+        _ => {
+            println!(
+                "greentic-operax serve: {EVENTS_NATS_URL_ENV} is not set; nothing to serve (set it to enable the NATS event bridge)"
+            );
+            return Ok(());
+        }
+    };
+
+    let token = std::env::var(&args.sorx_token_env)
+        .ok()
+        .filter(|token| !token.is_empty());
+    let client = HttpSorxClient::new(args.sorx_url.clone(), token);
+    let invoker = event_bridge_invoker::CoreOperaxInvoker::new(
+        args.artifact,
+        client,
+        args.team,
+        args.dry_run,
+    );
+
+    println!(
+        "greentic-operax serve: starting event bridge (sorx_url={}, dry_run={})",
+        args.sorx_url, args.dry_run
+    );
+
+    let handle = std::thread::Builder::new()
+        .name("operax-event-bridge".to_string())
+        .spawn(move || {
+            let tokio_runtime = match tokio::runtime::Builder::new_multi_thread()
+                .enable_all()
+                .build()
+            {
+                Ok(runtime) => runtime,
+                Err(err) => {
+                    eprintln!("greentic-operax: failed to build event-bridge runtime: {err}");
+                    return;
+                }
+            };
+
+            tokio_runtime.block_on(async move {
+                match async_nats::connect(&nats_url).await {
+                    Ok(client) => {
+                        eprintln!(
+                            "greentic-operax: event bridge connected to NATS at {nats_url} (greentic.operala.request.v1)"
+                        );
+                        let invoker = std::sync::Arc::new(invoker);
+                        if let Err(err) = operax_event_bridge::run_bridge(client, invoker).await {
+                            eprintln!("greentic-operax: event bridge stopped: {err}");
+                        }
+                    }
+                    Err(err) => {
+                        eprintln!(
+                            "greentic-operax: event bridge disabled, failed to connect to NATS at {nats_url}: {err}"
+                        );
+                    }
+                }
+            });
+        })
+        .map_err(|err| {
+            OperaxError::new(
+                "event_bridge_spawn_failed",
+                format!("failed to spawn event-bridge thread: {err}"),
+            )
+        })?;
+
+    // Keep the serve process alive while the bridge runs.
+    let _ = handle.join();
     Ok(())
 }
 
