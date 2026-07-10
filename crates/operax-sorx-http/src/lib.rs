@@ -615,4 +615,388 @@ mod tests {
         assert!(result.is_none());
         assert!(mock.calls.lock().unwrap().is_empty());
     }
+
+    #[test]
+    fn parse_http_json_response_ok() {
+        let response = "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\n\r\n{\"ok\":true}";
+        let value = parse_http_json_response(response).unwrap();
+        assert_eq!(value, json!({"ok": true}));
+    }
+
+    #[test]
+    fn parse_http_json_response_no_body_separator() {
+        let err = parse_http_json_response("HTTP/1.1 200 OK").unwrap_err();
+        assert_eq!(err.code, "invalid_sorx_response");
+    }
+
+    #[test]
+    fn parse_http_json_response_empty_body_returns_empty_object() {
+        let response = "HTTP/1.1 200 OK\r\n\r\n   ";
+        let value = parse_http_json_response(response).unwrap();
+        assert_eq!(value, json!({}));
+    }
+
+    #[test]
+    fn parse_http_json_response_error_status_with_code() {
+        let response = "HTTP/1.1 400 Bad Request\r\n\r\n{\"error\":{\"code\":\"bad_input\"}}";
+        let err = parse_http_json_response(response).unwrap_err();
+        assert_eq!(err.code, "bad_input");
+        assert!(err.message.contains("400"));
+    }
+
+    #[test]
+    fn parse_http_json_response_error_status_no_code() {
+        let response = "HTTP/1.1 500 Internal Server Error\r\n\r\n{\"message\":\"oops\"}";
+        let err = parse_http_json_response(response).unwrap_err();
+        assert_eq!(err.code, "sorx_http_error");
+        assert!(err.message.contains("500"));
+    }
+
+    #[test]
+    fn parse_http_json_response_missing_status_code_defaults_500() {
+        let response = "GARBAGE LINE\r\n\r\n{\"ok\":true}";
+        let err = parse_http_json_response(response).unwrap_err();
+        assert!(err.message.contains("500"));
+    }
+
+    #[test]
+    fn parse_http_json_response_status_399_is_ok() {
+        let response = "HTTP/1.1 399 Custom\r\n\r\n{\"v\":1}";
+        let value = parse_http_json_response(response).unwrap();
+        assert_eq!(value, json!({"v": 1}));
+    }
+
+    #[test]
+    fn string_field_extracts_string() {
+        let value = json!({"name": "hello"});
+        assert_eq!(string_field(&value, "name").unwrap(), "hello");
+    }
+
+    #[test]
+    fn string_field_missing_returns_error() {
+        let value = json!({"other": "x"});
+        let err = string_field(&value, "name").unwrap_err();
+        assert_eq!(err.code, "invalid_sorx_response");
+        assert!(err.message.contains("name"));
+    }
+
+    #[test]
+    fn string_field_non_string_returns_error() {
+        let value = json!({"count": 42});
+        let err = string_field(&value, "count").unwrap_err();
+        assert!(err.message.contains("count"));
+    }
+
+    #[test]
+    fn parsed_http_url_valid() {
+        let url = ParsedHttpUrl::parse("http://127.0.0.1:8787").unwrap();
+        assert_eq!(url.host, "127.0.0.1");
+        assert_eq!(url.port, 8787);
+    }
+
+    #[test]
+    fn parsed_http_url_no_port_defaults_80() {
+        let url = ParsedHttpUrl::parse("http://example.com").unwrap();
+        assert_eq!(url.host, "example.com");
+        assert_eq!(url.port, 80);
+    }
+
+    #[test]
+    fn parsed_http_url_with_path() {
+        let url = ParsedHttpUrl::parse("http://host:9090/v1/api").unwrap();
+        assert_eq!(url.host, "host");
+        assert_eq!(url.port, 9090);
+    }
+
+    #[test]
+    fn parsed_http_url_rejects_https() {
+        let err = ParsedHttpUrl::parse("https://host:443").unwrap_err();
+        assert_eq!(err.code, "unsupported_sorx_url");
+    }
+
+    #[test]
+    fn parsed_http_url_rejects_empty_host() {
+        let err = ParsedHttpUrl::parse("http://:8787").unwrap_err();
+        assert_eq!(err.code, "invalid_sorx_url");
+    }
+
+    #[test]
+    fn parsed_http_url_invalid_port_defaults_80() {
+        let url = ParsedHttpUrl::parse("http://host:notaport").unwrap();
+        assert_eq!(url.port, 80);
+    }
+
+    #[test]
+    fn capability_version_extracts_version() {
+        assert_eq!(
+            capability_version("cap://greentic/sorx/actions/pay/versions/0.2.0"),
+            Some("0.2.0")
+        );
+    }
+
+    #[test]
+    fn capability_version_no_versions_segment() {
+        assert_eq!(capability_version("cap://greentic/sorx/actions/pay"), None);
+    }
+
+    #[test]
+    fn capability_version_versions_at_end() {
+        assert_eq!(capability_version("a/versions"), None);
+    }
+
+    #[test]
+    fn business_action_capability_formats_correctly() {
+        assert_eq!(
+            business_action_capability("record_rent_payment", "0.1.0"),
+            "cap://greentic/sorx/actions/record-rent-payment/versions/0.1.0"
+        );
+    }
+
+    #[test]
+    fn business_action_body_structure() {
+        let call = BusinessActionCall {
+            id: "pay".into(),
+            version: "0.1.0".into(),
+            contract_hash: "sha256:abc".into(),
+            values: json!({"amount": 100}),
+            idempotency_key: Some("key-1".into()),
+        };
+        let body = business_action_body(&call);
+        assert_eq!(body["action_ref"]["contract_hash"], "sha256:abc");
+        assert_eq!(body["values"]["amount"], 100);
+        assert_eq!(body["options"]["idempotency_key"], "key-1");
+    }
+
+    #[test]
+    fn business_action_body_null_idempotency_key() {
+        let call = BusinessActionCall {
+            id: "pay".into(),
+            version: "0.1.0".into(),
+            contract_hash: "sha256:abc".into(),
+            values: json!({}),
+            idempotency_key: None,
+        };
+        let body = business_action_body(&call);
+        assert!(body["options"]["idempotency_key"].is_null());
+    }
+
+    #[test]
+    fn action_to_generated_route_converts() {
+        let action = ProposedAction {
+            sorx_target: SorxTarget::GeneratedRoute {
+                endpoint_id: "case.create".into(),
+                operation_id: Some("create_case".into()),
+                method: "POST".into(),
+                path: "/v1/cases".into(),
+            },
+            operation: ActionOperation::Invoke,
+            values: {
+                let mut m = serde_json::Map::new();
+                m.insert("name".into(), json!("test"));
+                m
+            },
+            idempotency_key: Some("idem-1".into()),
+        };
+        let route = action_to_generated_route(&action).unwrap().unwrap();
+        assert_eq!(route.method, "POST");
+        assert_eq!(route.path, "/v1/cases");
+        assert_eq!(route.values["name"], "test");
+        assert_eq!(route.idempotency_key.as_deref(), Some("idem-1"));
+    }
+
+    #[test]
+    fn action_to_generated_route_returns_none_for_business_action() {
+        let action = ProposedAction {
+            sorx_target: SorxTarget::BusinessAction {
+                id: "pay".into(),
+                version: "0.1.0".into(),
+                contract_hash: "sha256:x".into(),
+            },
+            operation: ActionOperation::Invoke,
+            values: serde_json::Map::new(),
+            idempotency_key: None,
+        };
+        assert!(action_to_generated_route(&action).unwrap().is_none());
+    }
+
+    #[test]
+    fn action_to_business_call_returns_none_for_generated_route() {
+        let action = ProposedAction {
+            sorx_target: SorxTarget::GeneratedRoute {
+                endpoint_id: "ep".into(),
+                operation_id: None,
+                method: "GET".into(),
+                path: "/v1/x".into(),
+            },
+            operation: ActionOperation::DryRun,
+            values: serde_json::Map::new(),
+            idempotency_key: None,
+        };
+        assert!(action_to_business_call(&action).unwrap().is_none());
+    }
+
+    #[test]
+    fn invoke_action_capability_invokes_with_declared_capability() {
+        let mock = MockSorxClient::default();
+        let capability = SorxCapabilityClient::new(&mock);
+        let ctx = OperaxContext::new("demo".into(), None, None, "sha256:x".into()).unwrap();
+        let action = ProposedAction {
+            sorx_target: SorxTarget::BusinessAction {
+                id: "record_rent_payment".into(),
+                version: "0.1.0".into(),
+                contract_hash: "sha256:abc".into(),
+            },
+            operation: ActionOperation::Invoke,
+            values: {
+                let mut m = serde_json::Map::new();
+                m.insert("amount".into(), json!(500));
+                m
+            },
+            idempotency_key: Some("key-1".into()),
+        };
+        let result =
+            invoke_action_capability(&capability, &ctx, &action, Some("cap://custom/capability"))
+                .unwrap();
+        assert!(result.is_some());
+        assert_eq!(
+            mock.calls.lock().unwrap().as_slice(),
+            ["invoke_business_action:record_rent_payment"]
+        );
+    }
+
+    #[test]
+    fn invoke_action_capability_uses_fallback_capability() {
+        let mock = MockSorxClient::default();
+        let capability = SorxCapabilityClient::new(&mock);
+        let ctx = OperaxContext::new("demo".into(), None, None, "sha256:x".into()).unwrap();
+        let action = ProposedAction {
+            sorx_target: SorxTarget::BusinessAction {
+                id: "record_rent_payment".into(),
+                version: "0.1.0".into(),
+                contract_hash: "sha256:abc".into(),
+            },
+            operation: ActionOperation::Invoke,
+            values: serde_json::Map::new(),
+            idempotency_key: None,
+        };
+        let result = invoke_action_capability(&capability, &ctx, &action, None).unwrap();
+        assert!(result.is_some());
+    }
+
+    #[test]
+    fn capability_call_defaults_version_from_capability() {
+        let call = capability_business_action_call(
+            "cap://greentic/sorx/actions/pay/versions/1.0.0",
+            "pay",
+            json!({"values": {"x": 1}}),
+            None,
+        )
+        .unwrap();
+        assert_eq!(call.version, "1.0.0");
+        assert_eq!(call.values, json!({"x": 1}));
+        assert!(call.idempotency_key.is_none());
+    }
+
+    #[test]
+    fn capability_call_defaults_version_to_0_1_0() {
+        let call = capability_business_action_call(
+            "cap://greentic/sorx/actions/pay",
+            "pay",
+            json!({"values": {"x": 1}}),
+            None,
+        )
+        .unwrap();
+        assert_eq!(call.version, "0.1.0");
+    }
+
+    #[test]
+    fn capability_call_defaults_contract_hash() {
+        let call =
+            capability_business_action_call("cap://x", "op", json!({"values": {}}), None).unwrap();
+        assert!(call.contract_hash.starts_with("sha256:"));
+        assert_eq!(call.contract_hash.len(), 71);
+    }
+
+    #[test]
+    fn capability_call_uses_input_as_values_when_no_values_key() {
+        let call =
+            capability_business_action_call("cap://x", "op", json!({"amount": 100}), None).unwrap();
+        assert_eq!(call.values, json!({"amount": 100}));
+    }
+
+    #[test]
+    fn mock_business_actions_returns_one() {
+        let mock = MockSorxClient::default();
+        let ctx = OperaxContext::new("demo".into(), None, None, "sha256:x".into()).unwrap();
+        let actions = mock.business_actions(&ctx).unwrap();
+        assert_eq!(actions.len(), 1);
+        assert_eq!(actions[0].id, "record_rent_payment");
+        assert_eq!(actions[0].version, "0.1.0");
+        assert!(actions[0].contract_hash.is_some());
+    }
+
+    #[test]
+    fn mock_dry_run_returns_valid() {
+        let mock = MockSorxClient::default();
+        let ctx = OperaxContext::new("demo".into(), None, None, "sha256:x".into()).unwrap();
+        let call = BusinessActionCall {
+            id: "pay".into(),
+            version: "0.1.0".into(),
+            contract_hash: "sha256:x".into(),
+            values: json!({}),
+            idempotency_key: None,
+        };
+        let result = mock.dry_run_business_action(&ctx, call).unwrap();
+        assert_eq!(result["valid"], true);
+        assert_eq!(
+            mock.calls.lock().unwrap().as_slice(),
+            ["dry_run_business_action:pay"]
+        );
+    }
+
+    #[test]
+    fn mock_invoke_business_action_returns_ok() {
+        let mock = MockSorxClient::default();
+        let ctx = OperaxContext::new("demo".into(), None, None, "sha256:x".into()).unwrap();
+        let call = BusinessActionCall {
+            id: "pay".into(),
+            version: "0.1.0".into(),
+            contract_hash: "sha256:x".into(),
+            values: json!({}),
+            idempotency_key: None,
+        };
+        let result = mock.invoke_business_action(&ctx, call).unwrap();
+        assert_eq!(result["ok"], true);
+        assert_eq!(result["action_ref"]["id"], "pay");
+    }
+
+    #[test]
+    fn mock_invoke_generated_route_returns_ok() {
+        let mock = MockSorxClient::default();
+        let ctx = OperaxContext::new("demo".into(), None, None, "sha256:x".into()).unwrap();
+        let route = GeneratedRouteCall {
+            method: "POST".into(),
+            path: "/v1/cases".into(),
+            values: json!({}),
+            idempotency_key: None,
+        };
+        let result = mock.invoke_generated_route(&ctx, route).unwrap();
+        assert_eq!(result["ok"], true);
+        assert_eq!(
+            mock.calls.lock().unwrap().as_slice(),
+            ["invoke_generated_route:/v1/cases"]
+        );
+    }
+
+    #[test]
+    fn http_client_new_trims_trailing_slash() {
+        let client = HttpSorxClient::new("http://localhost:8080/", None);
+        assert_eq!(client.base_url, "http://localhost:8080");
+    }
+
+    #[test]
+    fn http_client_new_preserves_token() {
+        let client = HttpSorxClient::new("http://localhost:8080", Some("secret".into()));
+        assert_eq!(client.token.as_deref(), Some("secret"));
+    }
 }
