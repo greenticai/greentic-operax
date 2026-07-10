@@ -16,6 +16,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Checkout greentic-pack dependency
+        uses: actions/checkout@v4
+        with:
+          repository: greenticai/greentic-pack
+          path: .greentic-deps/greentic-pack
+      - name: Link greentic-pack dependency
+        run: ln -s "$GITHUB_WORKSPACE/.greentic-deps/greentic-pack" "$GITHUB_WORKSPACE/../greentic-pack"
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt, clippy
@@ -26,10 +33,16 @@ jobs:
           tool: cargo-binstall
       - name: Install coverage tools
         run: |
-          cargo binstall -y cargo-nextest
-          cargo binstall -y cargo-llvm-cov
-          cargo binstall -y greentic-dev
-      - run: greentic-dev coverage --policy-file coverage-policy.json
+          # rust-cache restores ~/.cargo/.crates.toml but prunes ~/.cargo/bin of
+          # binstall-installed binaries, so binstall says "already installed"
+          # while the binary is gone. --force sidesteps that.
+          cargo binstall -y --force cargo-nextest
+          cargo binstall -y --force cargo-llvm-cov
+          cargo binstall -y --force greentic-dev
+          command -v cargo-nextest
+          command -v cargo-llvm-cov
+          greentic-dev --version
+      - run: greentic-dev coverage
       - uses: actions/upload-artifact@v4
         if: always()
         with:
