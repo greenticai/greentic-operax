@@ -36,10 +36,14 @@ fn cap_domain_name(cap: &str) -> Option<(String, String)> {
         return None;
     }
     let name = segs.pop()?;
-    // Drop a trailing version segment if present (e.g. ".../v1/name").
-    if segs.last().is_some_and(|s| {
-        s.len() >= 2 && s.starts_with('v') && s[1..].chars().all(|c| c.is_ascii_digit())
-    }) {
+    // Drop a trailing version segment if present (e.g. ".../v1/name"), but only when at
+    // least one segment would remain as `domain` — otherwise a pack literally named
+    // `v1`/`v2` would resolve to a blank domain.
+    if segs.len() > 1
+        && segs.last().is_some_and(|s| {
+            s.len() >= 2 && s.starts_with('v') && s[1..].chars().all(|c| c.is_ascii_digit())
+        })
+    {
         segs.pop();
     }
     let domain = segs.join("-");
@@ -47,12 +51,31 @@ fn cap_domain_name(cap: &str) -> Option<(String, String)> {
 }
 
 /// Returns `true` when `env` is a delivery for the business event declared by `sub`.
+///
+/// The cap string alone can't tell whether SoRX published this as an entity-lifecycle
+/// (CRUD) event or a command event, so both publish shapes are tried:
+/// - entity form: `<pack>/<Entity>.<op>` → `sorla.<san(pack)>.<san(Entity)>.<san(op)>`
+///   (each dot-separated part of `name` sanitized independently, dots kept as separators).
+/// - command form: `<pack>/<event_name>` → `sorla.<san(pack)>.<san(event_name)>`
+///   (`name` sanitized as a single segment, dots collapsed to dashes).
 pub fn event_matches(sub: &EventSubscription, env: &EventEnvelope) -> bool {
     let Some((domain, name)) = cap_domain_name(&sub.capability) else {
         return false;
     };
-    let suffix = format!("{}.{}", sanitize_segment(&domain), sanitize_segment(&name));
-    env.topic == format!("sorla.{suffix}") || env.topic.ends_with(&format!(".{suffix}"))
+    let san_domain = sanitize_segment(&domain);
+
+    let entity_tail = format!(
+        "{san_domain}.{}",
+        name.split('.')
+            .map(sanitize_segment)
+            .collect::<Vec<_>>()
+            .join(".")
+    );
+    let command_tail = format!("{san_domain}.{}", sanitize_segment(&name));
+
+    [entity_tail, command_tail].into_iter().any(|tail| {
+        env.topic == format!("sorla.{tail}") || env.topic.ends_with(&format!(".{tail}"))
+    })
 }
 
 #[cfg(test)]
@@ -90,11 +113,23 @@ mod tests {
     }
 
     #[test]
-    fn matches_entity_topic() {
-        // cap domain=landlord-tenant-sor name=tenant.code_generated  ↔  topic sorla.landlord-tenant-sor.tenant-code_generated
+    fn matches_command_event_topic() {
+        // Command event: cap domain=landlord-tenant-sor name=tenant.code_generated (dots
+        // collapsed to dashes as a single topic segment)  ↔  sorla.landlord-tenant-sor.tenant-code_generated
         assert!(event_matches(
             &sub("cap://greentic/events/landlord-tenant-sor/tenant.code_generated"),
             &env_with_topic("sorla.landlord-tenant-sor.tenant-code_generated")
+        ));
+    }
+
+    #[test]
+    fn matches_entity_lifecycle_topic() {
+        // Entity-lifecycle (CRUD) event: cap domain=landlord name=Tenant.created — the `.`
+        // between Entity and op is a topic-segment SEPARATOR, not part of one sanitized
+        // segment. Previously broken: the matcher only tried the command-form collapse.
+        assert!(event_matches(
+            &sub("cap://greentic/events/landlord/Tenant.created"),
+            &env_with_topic("sorla.landlord.Tenant.created")
         ));
     }
 
@@ -120,6 +155,17 @@ mod tests {
         assert!(event_matches(
             &sub("cap://greentic/events/boiler-maintenance/v1/work-order-assigned"),
             &env_with_topic("sorla.boiler-maintenance.work-order-assigned")
+        ));
+    }
+
+    #[test]
+    fn matches_pack_named_like_version() {
+        // A 2-segment cap whose pack is itself named like a version segment (`v2`) must
+        // still parse domain="v2" — the version-strip guard must not blank it out just
+        // because it's the only segment left after popping `name`.
+        assert!(event_matches(
+            &sub("cap://greentic/events/v2/tenant.created"),
+            &env_with_topic("sorla.v2.tenant.created")
         ));
     }
 }
