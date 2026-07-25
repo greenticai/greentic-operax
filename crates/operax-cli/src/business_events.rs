@@ -128,9 +128,8 @@ fn report_outcome(report: &RunReport) -> &'static str {
 /// current-thread tokio runtime, so the caller should run this on a dedicated thread.
 ///
 /// Not exercised by this task's unit tests (no live NATS broker available here); a
-/// live-NATS integration test is deferred to a follow-up task. Not yet wired to a CLI
-/// subcommand — that wiring is a follow-up task too.
-#[allow(dead_code)]
+/// live-NATS integration test is deferred to a follow-up task. Wired to the CLI via
+/// the `operax events subscribe` subcommand (`lib.rs::run_events_subscribe`).
 pub fn run_subscriber(config: SubscriberConfig) -> anyhow::Result<()> {
     let pack = load_operational_pack(&config.artifact)?;
     let subscriptions = pack.metadata.consumes.clone();
