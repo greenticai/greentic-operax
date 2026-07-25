@@ -8,6 +8,8 @@ use std::fs;
 use std::path::PathBuf;
 use std::process::ExitCode;
 
+#[cfg(feature = "events")]
+mod business_events;
 mod test_runtime;
 
 #[derive(Debug, Parser)]
