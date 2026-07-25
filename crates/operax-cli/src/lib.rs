@@ -8,6 +8,8 @@ use std::fs;
 use std::path::PathBuf;
 use std::process::ExitCode;
 
+#[cfg(feature = "events")]
+mod business_events;
 mod test_runtime;
 
 #[derive(Debug, Parser)]
@@ -31,6 +33,39 @@ pub enum Commands {
     Run(RunArgs),
     /// Start a local OperaX manager for testing a handoff artifact.
     Test(TestArgs),
+    /// Business-event subscription commands.
+    Events(EventsArgs),
+}
+
+#[derive(Debug, Parser)]
+pub struct EventsArgs {
+    #[command(subcommand)]
+    command: EventsCommands,
+}
+
+#[derive(Debug, Subcommand)]
+pub enum EventsCommands {
+    /// Subscribe to the artifact's declared business events and run it on match.
+    Subscribe(EventsSubscribeArgs),
+}
+
+#[derive(Debug, Parser)]
+pub struct EventsSubscribeArgs {
+    /// OperaLa handoff directory or pilot .gtpack artifact.
+    #[arg(long)]
+    artifact: PathBuf,
+    /// Tenant id to scope the NATS subscription and pass to SORX.
+    #[arg(long)]
+    tenant: String,
+    /// SORX base URL.
+    #[arg(long)]
+    sorx_url: String,
+    /// NATS server URL. Defaults to the OPERAX_EVENTS_NATS_URL environment variable.
+    #[arg(long)]
+    nats_url: Option<String>,
+    /// Environment variable containing the SORX token.
+    #[arg(long, default_value = "SORX_TOKEN")]
+    sorx_token_env: String,
 }
 
 #[derive(Debug, Parser)]
@@ -152,7 +187,47 @@ fn dispatch(cli: Cli) -> Result<()> {
             run_operax(args, cli.locale)
         }
         Commands::Test(args) => run_test_manager(args, cli.locale),
+        Commands::Events(args) => run_events(args),
     }
+}
+
+#[cfg(feature = "events")]
+fn run_events(args: EventsArgs) -> Result<()> {
+    match args.command {
+        EventsCommands::Subscribe(args) => run_events_subscribe(args),
+    }
+}
+
+#[cfg(feature = "events")]
+fn run_events_subscribe(args: EventsSubscribeArgs) -> Result<()> {
+    let nats_url = args
+        .nats_url
+        .or_else(|| std::env::var("OPERAX_EVENTS_NATS_URL").ok())
+        .ok_or_else(|| {
+            OperaxError::new(
+                "missing_nats_url",
+                "greentic-operax events subscribe requires --nats-url or OPERAX_EVENTS_NATS_URL",
+            )
+        })?;
+    let config = business_events::SubscriberConfig {
+        nats_url,
+        tenant: args.tenant,
+        artifact: args.artifact,
+        sorx_base_url: args.sorx_url,
+        sorx_token: std::env::var(&args.sorx_token_env)
+            .ok()
+            .filter(|token| !token.is_empty()),
+    };
+    business_events::run_subscriber(config)
+        .map_err(|error| OperaxError::new("events_subscribe_failed", error.to_string()))
+}
+
+#[cfg(not(feature = "events"))]
+fn run_events(_args: EventsArgs) -> Result<()> {
+    Err(OperaxError::new(
+        "events_feature_disabled",
+        "greentic-operax was built without the `events` feature; rebuild with --features events",
+    ))
 }
 
 fn run_operax(args: RunArgs, locale: Option<String>) -> Result<()> {
@@ -244,7 +319,7 @@ fn run_test_manager(args: TestArgs, locale: Option<String>) -> Result<()> {
 
 fn exit_code(error: &OperaxError) -> i32 {
     match error.code.as_str() {
-        "missing_tenant" | "missing_team" => 2,
+        "missing_tenant" | "missing_team" | "missing_nats_url" => 2,
         "unsupported_artifact"
         | "missing_operala_yaml"
         | "missing_operala_handoff"
