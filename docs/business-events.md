@@ -11,14 +11,14 @@ consumes:
   - id: "entity.created"
     capability: "cap://greentic/events/mypack/Entity.created"
   - id: "account.updated"
-    capability: "cap://greentic/events/mypack/Account.updated/v1"
+    capability: "cap://greentic/events/mypack/v1/Account.updated"
   - id: "custom.command"
     capability: "cap://greentic/events/mypack/custom.command"
 ```
 
 Each subscription has:
 - **`id`**: a friendly identifier for your pack's logic (e.g., a step name that handles this event).
-- **`capability`**: the event type URI, following the format `cap://greentic/events/<pack>/<event>` with an optional `/v1/` version segment (currently unused but reserved).
+- **`capability`**: the event type URI, following the format `cap://greentic/events/<pack>/<event>` with an optional `v1` version segment placed *before* the event name (`cap://greentic/events/<pack>/v1/<event>`; currently unused but reserved).
 
 The `<event>` segment can represent either:
 - **Entity lifecycle events**: `<Entity>.<operation>` (e.g., `Entity.created`, `Account.updated`).
@@ -43,7 +43,7 @@ operax events subscribe \
 - **`--artifact`** (required): path to the deployed `.gtpack` file.
 - **`--tenant`** (required): the tenant ID for which to subscribe. The subscriber will only process events tagged with this tenant.
 - **`--sorx-url`** (required): the HTTP base URL of the SoRX instance (e.g., `http://localhost:8080`).
-- **`--nats-url`** (optional): the NATS server URL (default: `nats://localhost:4222`).
+- **`--nats-url`** (optional): the NATS server URL. There is no default — either `--nats-url` or the `OPERAX_EVENTS_NATS_URL` environment variable must be set; if neither is provided, the command fails with `missing_nats_url` (exit code 2).
 
 ### Environment Variables
 
@@ -110,7 +110,7 @@ However, SoRX publishes hierarchical topics (e.g., `sorla.mypack.Entity.created`
    ```bash
    operax events subscribe --artifact ... --tenant ...
    ```
-   Look for a "subscriber connected" or similar log message.
+   Look for a `subscribed to <subject>` log message (e.g., `subscribed to greentic.events.acme-corp.>`).
 
 2. Confirm your pack's `operala.yaml` includes the correct `consumes` entries and that the capabilities match the events SoRX is publishing.
 

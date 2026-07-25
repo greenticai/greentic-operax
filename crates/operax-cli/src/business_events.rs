@@ -78,9 +78,9 @@ pub fn event_matches(sub: &EventSubscription, env: &EventEnvelope) -> bool {
     );
     let command_tail = format!("{san_domain}.{}", sanitize_segment(&name));
 
-    [entity_tail, command_tail].into_iter().any(|tail| {
-        env.topic == format!("sorla.{tail}") || env.topic.ends_with(&format!(".{tail}"))
-    })
+    [entity_tail, command_tail]
+        .into_iter()
+        .any(|tail| env.topic == format!("sorla.{tail}"))
 }
 
 /// Configuration for [`run_subscriber`]: the NATS endpoint to connect to, the
@@ -245,6 +245,17 @@ mod tests {
         assert!(!event_matches(
             &sub("cap://greentic/events/landlord/tenant.created"),
             &env_with_topic("sorla.landlord.other-event")
+        ));
+    }
+
+    #[test]
+    fn does_not_match_other_pack_same_name() {
+        // A different pack (`billing`) publishing the same entity/op tail (`tenant.created`)
+        // must NOT match a cap declared for pack `landlord` — the matcher must not fall back
+        // to a topic-suffix match, only the exact `sorla.<pack>.<tail>` topic counts.
+        assert!(!event_matches(
+            &sub("cap://greentic/events/tenant/created"),
+            &env_with_topic("sorla.billing.tenant.created")
         ));
     }
 
