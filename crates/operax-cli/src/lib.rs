@@ -63,9 +63,9 @@ pub struct EventsSubscribeArgs {
     /// NATS server URL. Defaults to the OPERAX_EVENTS_NATS_URL environment variable.
     #[arg(long)]
     nats_url: Option<String>,
-    /// SORX bearer token.
-    #[arg(long)]
-    sorx_token: Option<String>,
+    /// Environment variable containing the SORX token.
+    #[arg(long, default_value = "SORX_TOKEN")]
+    sorx_token_env: String,
 }
 
 #[derive(Debug, Parser)]
@@ -214,7 +214,9 @@ fn run_events_subscribe(args: EventsSubscribeArgs) -> Result<()> {
         tenant: args.tenant,
         artifact: args.artifact,
         sorx_base_url: args.sorx_url,
-        sorx_token: args.sorx_token,
+        sorx_token: std::env::var(&args.sorx_token_env)
+            .ok()
+            .filter(|token| !token.is_empty()),
     };
     business_events::run_subscriber(config)
         .map_err(|error| OperaxError::new("events_subscribe_failed", error.to_string()))
