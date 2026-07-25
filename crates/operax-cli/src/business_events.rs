@@ -1,15 +1,20 @@
-//! Pure cap↔topic matcher for OperaX business-event subscriptions.
+//! Cap↔topic matcher and NATS subscriber loop for OperaX business-event
+//! subscriptions.
 //!
 //! Maps an `operala.yaml` `consumes[].capability` entry (an events cap URI) to
-//! the NATS topic suffix that SoRX actually publishes, and checks whether a
-//! received [`EventEnvelope`] matches a declared [`EventSubscription`].
-//!
-//! `event_matches` is currently exercised only by this module's unit tests;
-//! the subscriber that calls it in production lands in a follow-up task.
-#![allow(dead_code)]
+//! the NATS topic suffix that SoRX actually publishes, checks whether a
+//! received [`EventEnvelope`] matches a declared [`EventSubscription`]
+//! (`event_matches`), and dispatches matching events to `run_artifact_with_client`
+//! via [`run_subscriber`].
 
+use std::path::{Path, PathBuf};
+
+use futures::StreamExt;
 use greentic_types::EventEnvelope;
-use operax_core::EventSubscription;
+use operax_core::{EventSubscription, RunReport};
+use operax_pack_loader::load_operational_pack;
+use operax_runtime::{RunRequest, run_artifact_with_client};
+use operax_sorx_http::HttpSorxClient;
 
 const EVENTS_CAP_PREFIX: &str = "cap://greentic/events/";
 
@@ -75,6 +80,109 @@ pub fn event_matches(sub: &EventSubscription, env: &EventEnvelope) -> bool {
 
     [entity_tail, command_tail].into_iter().any(|tail| {
         env.topic == format!("sorla.{tail}") || env.topic.ends_with(&format!(".{tail}"))
+    })
+}
+
+/// Configuration for [`run_subscriber`]: the NATS endpoint to connect to, the
+/// tenant subject scope to subscribe on, the artifact whose declared
+/// `consumes` subscriptions gate dispatch, and how to reach SoRX for the
+/// resulting runs.
+pub struct SubscriberConfig {
+    pub nats_url: String,
+    pub tenant: String,
+    pub artifact: PathBuf,
+    pub sorx_base_url: String,
+    pub sorx_token: Option<String>,
+}
+
+/// Builds the `RunRequest` for dispatching `env` to `artifact` on behalf of the
+/// declared subscription `sub`. Pure: no I/O.
+///
+/// `sub` isn't consulted for `RunRequest` fields today (routing already
+/// happened via `event_matches`); it's kept in the signature so future
+/// per-subscription overrides (team/locale) have somewhere to read from.
+fn request_for(env: &EventEnvelope, _sub: &EventSubscription, artifact: &Path) -> RunRequest {
+    RunRequest {
+        artifact: artifact.to_path_buf(),
+        tenant: env.tenant.tenant.to_string(),
+        team: None,
+        locale: None,
+        caller_role: Some("business-event".to_string()),
+        input: env.payload.clone(),
+        dry_run: false,
+        audit_dir: None,
+    }
+}
+
+/// Classifies a completed run for logging: `"ok"` when SoRX reported no failed
+/// operation, `"failed"` otherwise.
+fn report_outcome(report: &RunReport) -> &'static str {
+    if report.failed_operation.is_none() {
+        "ok"
+    } else {
+        "failed"
+    }
+}
+
+/// Runs the NATS subscription loop until the connection ends. Blocking: spins its own
+/// current-thread tokio runtime, so the caller should run this on a dedicated thread.
+///
+/// Not exercised by this task's unit tests (no live NATS broker available here); a
+/// live-NATS integration test is deferred to a follow-up task. Not yet wired to a CLI
+/// subcommand — that wiring is a follow-up task too.
+#[allow(dead_code)]
+pub fn run_subscriber(config: SubscriberConfig) -> anyhow::Result<()> {
+    let pack = load_operational_pack(&config.artifact)?;
+    let subscriptions = pack.metadata.consumes.clone();
+    if subscriptions.is_empty() {
+        eprintln!(
+            "no `consumes` subscriptions declared in {}; nothing to subscribe",
+            config.artifact.display()
+        );
+        return Ok(());
+    }
+
+    let rt = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()?;
+    rt.block_on(async move {
+        let client = async_nats::connect(&config.nats_url).await?;
+        let subject = format!("greentic.events.{}.>", config.tenant);
+        let mut subscriber = client.subscribe(subject.clone()).await?;
+        eprintln!("subscribed to {subject}");
+        while let Some(msg) = subscriber.next().await {
+            let env: EventEnvelope = match serde_json::from_slice(&msg.payload) {
+                Ok(env) => env,
+                Err(err) => {
+                    eprintln!("skip undecodable event on {}: {err}", msg.subject);
+                    continue;
+                }
+            };
+            for subscription in &subscriptions {
+                if !event_matches(subscription, &env) {
+                    continue;
+                }
+                let request = request_for(&env, subscription, &config.artifact);
+                let sorx =
+                    HttpSorxClient::new(config.sorx_base_url.clone(), config.sorx_token.clone());
+                let topic = env.topic.clone();
+                let artifact = config.artifact.clone();
+                match tokio::task::spawn_blocking(move || run_artifact_with_client(request, &sorx))
+                    .await
+                {
+                    Ok(Ok(report)) => {
+                        eprintln!(
+                            "ran {} for {topic}: {}",
+                            artifact.display(),
+                            report_outcome(&report)
+                        );
+                    }
+                    Ok(Err(err)) => eprintln!("run failed for {topic}: {err}"),
+                    Err(join_err) => eprintln!("run task panicked for {topic}: {join_err}"),
+                }
+            }
+        }
+        Ok::<(), anyhow::Error>(())
     })
 }
 
@@ -167,5 +275,22 @@ mod tests {
             &sub("cap://greentic/events/v2/tenant.created"),
             &env_with_topic("sorla.v2.tenant.created")
         ));
+    }
+
+    #[test]
+    fn routes_matching_event_to_run_request() {
+        let mut env = env_with_topic("sorla.landlord.tenant-created");
+        env.payload = serde_json::json!({"tenant_id": "tenant-1", "unit": "42"});
+        let s = sub("cap://greentic/events/landlord/tenant.created");
+
+        let req = request_for(&env, &s, std::path::Path::new("/x.gtpack"));
+
+        assert_eq!(req.tenant, env.tenant.tenant.to_string());
+        assert_eq!(req.input, env.payload);
+        assert_eq!(req.caller_role.as_deref(), Some("business-event"));
+        assert!(!req.dry_run);
+        assert_eq!(req.artifact, std::path::PathBuf::from("/x.gtpack"));
+        assert_eq!(req.team, None);
+        assert_eq!(req.audit_dir, None);
     }
 }

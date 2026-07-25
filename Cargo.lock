@@ -1774,6 +1774,7 @@ dependencies = [
 name = "greentic-operax"
 version = "0.1.1"
 dependencies = [
+ "anyhow",
  "async-nats",
  "chrono",
  "clap",
