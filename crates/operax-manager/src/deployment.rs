@@ -125,8 +125,48 @@ impl DeploymentManager {
         }
     }
 
+    /// Construct a manager and rebuild slots from the persisted registry.
+    /// A record whose pack fails to load becomes a `Failed` slot (kept, not run).
+    pub fn load(
+        store: OperaxDeploymentStore,
+        token: Option<String>,
+        client_builder: SorxClientBuilder,
+    ) -> Self {
+        let mgr = Self::new(store, token, client_builder);
+        let registry = match mgr.store.load() {
+            Ok(r) => r,
+            Err(err) => {
+                eprintln!("[operax serve] failed to load registry: {err}; starting empty");
+                DeploymentRegistry::default()
+            }
+        };
+        if let Ok(mut slots) = mgr.slots.write() {
+            for record in registry.deployments {
+                // A `Failed` slot keeps its record with no runnable runtime
+                // (`runtime: None`); the daemon never crashes on a bad pack.
+                let (runtime, status) = match mgr.build_runtime(&record) {
+                    Ok(rt) => (Some(rt), DeploymentStatus::Ready),
+                    Err(err) => (
+                        None,
+                        DeploymentStatus::Failed {
+                            error: format!("{err:?}"),
+                        },
+                    ),
+                };
+                slots.insert(
+                    record.id.clone(),
+                    DeploymentSlot {
+                        record,
+                        runtime,
+                        status,
+                    },
+                );
+            }
+        }
+        mgr
+    }
+
     /// Build a `ManagerRuntime` for a record's active version by loading its pack.
-    #[allow(dead_code)]
     fn build_runtime(&self, record: &DeploymentRecord) -> Result<Arc<ManagerRuntime>, DeployError> {
         let pack = operax_pack_loader::load_operational_pack(&record.active.gtpack_path)
             .map_err(|e| DeployError::PackLoad(e.to_string()))?;
@@ -495,6 +535,64 @@ mod tests {
         assert_eq!(detail.record.history.len(), HISTORY_CAP);
         // newest-first: the most recent previous version sits at index 0.
         assert!(detail.record.history[0].version > detail.record.history[1].version);
+    }
+
+    #[test]
+    fn load_rebuilds_ready_and_marks_failed() {
+        // Seed a registry file with one good record and one bad-path record.
+        let path = {
+            let mut p = std::env::temp_dir();
+            p.push(format!("operax-boot-{}.json", std::process::id()));
+            p
+        };
+        let _ = std::fs::remove_file(&path);
+        let good = DeploymentRecord {
+            id: "good".into(),
+            tenant: "demo".into(),
+            team: None,
+            locale: None,
+            sorx_url: "http://x".into(),
+            active: DeploymentVersion {
+                version: 1,
+                gtpack_path: fixture_gtpack(),
+                pack_digest: "sha256:g".into(),
+                deployed_at_unix: 1,
+            },
+            history: vec![],
+        };
+        let bad = DeploymentRecord {
+            id: "bad".into(),
+            tenant: "demo".into(),
+            team: None,
+            locale: None,
+            sorx_url: "http://x".into(),
+            active: DeploymentVersion {
+                version: 1,
+                gtpack_path: std::path::PathBuf::from("/nonexistent/x.gtpack"),
+                pack_digest: "sha256:b".into(),
+                deployed_at_unix: 1,
+            },
+            history: vec![],
+        };
+        let store = crate::deployment_store::OperaxDeploymentStore::new(path.clone());
+        store
+            .save(&DeploymentRegistry {
+                deployments: vec![good, bad],
+            })
+            .expect("seed");
+
+        let mgr = DeploymentManager::load(
+            crate::deployment_store::OperaxDeploymentStore::new(path.clone()),
+            None,
+            Box::new(|_u, _t| {
+                Arc::new(StubClient) as Arc<dyn operax_sorx_http::SorxClient + Send + Sync>
+            }),
+        );
+        let good_detail = mgr.get("good").expect("good present");
+        assert!(matches!(good_detail.status, DeploymentStatus::Ready));
+        let bad_detail = mgr.get("bad").expect("bad present");
+        assert!(matches!(bad_detail.status, DeploymentStatus::Failed { .. }));
+        let _ = std::fs::remove_file(&path);
     }
 
     #[test]
