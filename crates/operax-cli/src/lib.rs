@@ -10,6 +10,8 @@ use std::process::ExitCode;
 
 #[cfg(feature = "events")]
 mod business_events;
+#[cfg(feature = "events")]
+mod presence;
 mod test_runtime;
 
 #[derive(Debug, Parser)]
@@ -35,6 +37,8 @@ pub enum Commands {
     Test(TestArgs),
     /// Business-event subscription commands.
     Events(EventsArgs),
+    /// SoRX presence discovery commands.
+    Presence(PresenceArgs),
 }
 
 #[derive(Debug, Parser)]
@@ -66,6 +70,28 @@ pub struct EventsSubscribeArgs {
     /// Environment variable containing the SORX token.
     #[arg(long, default_value = "SORX_TOKEN")]
     sorx_token_env: String,
+}
+
+#[derive(Debug, Parser)]
+pub struct PresenceArgs {
+    #[command(subcommand)]
+    command: PresenceCommands,
+}
+
+#[derive(Debug, Subcommand)]
+pub enum PresenceCommands {
+    /// Subscribe to SoRX presence announcements and log the discovered directory.
+    Subscribe(PresenceSubscribeArgs),
+}
+
+#[derive(Debug, Parser)]
+pub struct PresenceSubscribeArgs {
+    /// NATS server URL. Defaults to the OPERAX_PRESENCE_NATS_URL environment variable.
+    #[arg(long)]
+    nats_url: Option<String>,
+    /// Tenant id to scope the presence subscription. Defaults to all tenants.
+    #[arg(long)]
+    tenant: Option<String>,
 }
 
 #[derive(Debug, Parser)]
@@ -188,6 +214,7 @@ fn dispatch(cli: Cli) -> Result<()> {
         }
         Commands::Test(args) => run_test_manager(args, cli.locale),
         Commands::Events(args) => run_events(args),
+        Commands::Presence(args) => run_presence(args),
     }
 }
 
@@ -224,6 +251,40 @@ fn run_events_subscribe(args: EventsSubscribeArgs) -> Result<()> {
 
 #[cfg(not(feature = "events"))]
 fn run_events(_args: EventsArgs) -> Result<()> {
+    Err(OperaxError::new(
+        "events_feature_disabled",
+        "greentic-operax was built without the `events` feature; rebuild with --features events",
+    ))
+}
+
+#[cfg(feature = "events")]
+fn run_presence(args: PresenceArgs) -> Result<()> {
+    match args.command {
+        PresenceCommands::Subscribe(args) => run_presence_subscribe(args),
+    }
+}
+
+#[cfg(feature = "events")]
+fn run_presence_subscribe(args: PresenceSubscribeArgs) -> Result<()> {
+    let nats_url = args
+        .nats_url
+        .or_else(|| std::env::var("OPERAX_PRESENCE_NATS_URL").ok())
+        .ok_or_else(|| {
+            OperaxError::new(
+                "missing_nats_url",
+                "greentic-operax presence subscribe requires --nats-url or OPERAX_PRESENCE_NATS_URL",
+            )
+        })?;
+    let config = presence::PresenceSubscriberConfig {
+        nats_url,
+        tenant: args.tenant,
+    };
+    presence::run_presence_subscriber(config)
+        .map_err(|error| OperaxError::new("presence_subscribe_failed", error.to_string()))
+}
+
+#[cfg(not(feature = "events"))]
+fn run_presence(_args: PresenceArgs) -> Result<()> {
     Err(OperaxError::new(
         "events_feature_disabled",
         "greentic-operax was built without the `events` feature; rebuild with --features events",
