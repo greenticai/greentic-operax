@@ -229,6 +229,74 @@ impl DeploymentManager {
             })
             .collect()
     }
+
+    /// Load a new pack version and swap it in as active, keeping the old
+    /// version at the front of the (capped) history. The new pack is loaded
+    /// BEFORE any mutation, so a bad path leaves the old version active with
+    /// no downtime.
+    pub fn upgrade(
+        &self,
+        id: &str,
+        gtpack_path: PathBuf,
+    ) -> Result<DeploymentSummary, DeployError> {
+        let mut slots = self
+            .slots
+            .write()
+            .map_err(|_| DeployError::Internal("lock poisoned".into()))?;
+        if !slots.contains_key(id) {
+            return Err(DeployError::NotFound);
+        }
+        // Load the NEW pack first; on failure the old version stays active.
+        let pack = operax_pack_loader::load_operational_pack(&gtpack_path)
+            .map_err(|e| DeployError::PackLoad(e.to_string()))?;
+        let digest = pack.pack_digest.clone();
+
+        let slot = slots.get_mut(id).ok_or(DeployError::NotFound)?;
+        let client = (self.client_builder)(&slot.record.sorx_url, self.token.as_deref());
+        // ManagerRuntime::new is infallible (returns Self).
+        let runtime = ManagerRuntime::new(
+            pack,
+            slot.record.tenant.clone(),
+            slot.record.team.clone(),
+            slot.record.locale.clone(),
+            None,
+            client,
+        );
+
+        let next_version = slot.record.active.version + 1;
+        let new_active = DeploymentVersion {
+            version: next_version,
+            gtpack_path,
+            pack_digest: digest,
+            deployed_at_unix: now_unix(),
+        };
+        let old_active = std::mem::replace(&mut slot.record.active, new_active);
+        slot.record.history.insert(0, old_active);
+        slot.record.history.truncate(HISTORY_CAP);
+        slot.runtime = Some(Arc::new(runtime));
+        slot.status = DeploymentStatus::Ready;
+
+        let summary = DeploymentSummary {
+            id: slot.record.id.clone(),
+            tenant: slot.record.tenant.clone(),
+            active_version: next_version,
+            status: DeploymentStatus::Ready,
+        };
+        self.persist_locked(&slots)?;
+        Ok(summary)
+    }
+
+    /// Drop a deployment slot entirely. Missing id is `NotFound`.
+    pub fn remove(&self, id: &str) -> Result<(), DeployError> {
+        let mut slots = self
+            .slots
+            .write()
+            .map_err(|_| DeployError::Internal("lock poisoned".into()))?;
+        if slots.remove(id).is_none() {
+            return Err(DeployError::NotFound);
+        }
+        self.persist_locked(&slots)
+    }
 }
 
 #[cfg(test)]
@@ -382,5 +450,62 @@ mod tests {
         let err = mgr.deploy(spec).unwrap_err();
         assert!(matches!(err, DeployError::PackLoad(_)));
         assert!(mgr.get("bad").is_none());
+    }
+
+    #[test]
+    fn upgrade_bumps_version_and_pushes_history() {
+        let mgr = test_manager();
+        mgr.deploy(deploy_spec("up")).expect("deploy");
+        let summary = mgr.upgrade("up", fixture_gtpack()).expect("upgrade");
+        assert_eq!(summary.active_version, 2);
+        let detail = mgr.get("up").expect("exists");
+        assert_eq!(detail.record.active.version, 2);
+        assert_eq!(detail.record.history.len(), 1);
+        assert_eq!(detail.record.history[0].version, 1);
+    }
+
+    #[test]
+    fn upgrade_bad_path_keeps_old_active() {
+        let mgr = test_manager();
+        mgr.deploy(deploy_spec("keep")).expect("deploy");
+        let err = mgr
+            .upgrade("keep", std::path::PathBuf::from("/nonexistent/x.gtpack"))
+            .unwrap_err();
+        assert!(matches!(err, DeployError::PackLoad(_)));
+        let detail = mgr.get("keep").expect("still there");
+        assert_eq!(detail.record.active.version, 1);
+        assert!(matches!(detail.status, DeploymentStatus::Ready));
+    }
+
+    #[test]
+    fn upgrade_unknown_id_is_not_found() {
+        let mgr = test_manager();
+        let err = mgr.upgrade("ghost", fixture_gtpack()).unwrap_err();
+        assert!(matches!(err, DeployError::NotFound));
+    }
+
+    #[test]
+    fn history_is_capped() {
+        let mgr = test_manager();
+        mgr.deploy(deploy_spec("cap")).expect("deploy"); // v1
+        for _ in 0..(HISTORY_CAP + 2) {
+            mgr.upgrade("cap", fixture_gtpack()).expect("upgrade");
+        }
+        let detail = mgr.get("cap").expect("exists");
+        assert_eq!(detail.record.history.len(), HISTORY_CAP);
+        // newest-first: the most recent previous version sits at index 0.
+        assert!(detail.record.history[0].version > detail.record.history[1].version);
+    }
+
+    #[test]
+    fn remove_drops_deployment() {
+        let mgr = test_manager();
+        mgr.deploy(deploy_spec("gone")).expect("deploy");
+        mgr.remove("gone").expect("remove");
+        assert!(mgr.get("gone").is_none());
+        assert!(matches!(
+            mgr.remove("gone").unwrap_err(),
+            DeployError::NotFound
+        ));
     }
 }
