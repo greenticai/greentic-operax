@@ -28,7 +28,10 @@ impl OperaxDeploymentStore {
             }
             Err(err) => Err(OperaxError::new(
                 "registry_read_failed",
-                format!("reading deployment registry at {}: {err}", self.path.display()),
+                format!(
+                    "reading deployment registry at {}: {err}",
+                    self.path.display()
+                ),
             )),
         }
     }
@@ -49,7 +52,10 @@ impl OperaxDeploymentStore {
         let bytes = serde_json::to_vec_pretty(registry)?;
         let tmp = self.path.with_extension("json.tmp");
         std::fs::write(&tmp, &bytes).map_err(|e| {
-            OperaxError::new("registry_write_failed", format!("writing {}: {e}", tmp.display()))
+            OperaxError::new(
+                "registry_write_failed",
+                format!("writing {}: {e}", tmp.display()),
+            )
         })?;
         std::fs::rename(&tmp, &self.path).map_err(|e| {
             OperaxError::new(
@@ -69,7 +75,10 @@ mod tests {
 
     fn tmp_path(name: &str) -> PathBuf {
         let mut p = std::env::temp_dir();
-        p.push(format!("operax-store-test-{}-{name}.json", std::process::id()));
+        p.push(format!(
+            "operax-store-test-{}-{name}.json",
+            std::process::id()
+        ));
         p
     }
 
