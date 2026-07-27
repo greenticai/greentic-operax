@@ -10,6 +10,8 @@ use std::net::{TcpListener, TcpStream};
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 
+pub mod deployment;
+
 #[derive(Debug, Clone)]
 pub struct ManagerOptions {
     pub artifact: PathBuf,
