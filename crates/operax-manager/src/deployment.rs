@@ -124,8 +124,6 @@ pub enum DeployError {
     /// The request is malformed (e.g. neither `sorx_url` nor `sor` given).
     BadRequest(String),
     /// Discovery via `sor` could not resolve a live SoRX endpoint.
-    // used in Task 5/6 (run's discover path and its serve.rs error mapping)
-    #[allow(dead_code)]
     Unresolved(String),
     /// `sor` was requested but no `SorxResolver` is configured.
     DiscoveryUnavailable,
@@ -408,15 +406,32 @@ impl DeploymentManager {
             .read()
             .map_err(|_| DeployError::Internal("lock poisoned".into()))?;
         let slot = slots.get(id).ok_or(DeployError::NotFound)?;
-        let runtime = match (&slot.status, &slot.runtime) {
+        let rt = match (&slot.status, &slot.runtime) {
             (DeploymentStatus::Ready, Some(rt)) => rt.clone(),
             _ => return Err(DeployError::DeploymentFailed),
         };
+        let discover = slot.record.sor.clone();
+        let tenant = slot.record.tenant.clone();
         // Drop the read lock before running so other deployments proceed.
         drop(slots);
-        runtime
-            .run_input(input, dry_run, false)
-            .map_err(|e| DeployError::Internal(e.to_string()))
+
+        match discover {
+            Some(sor) => {
+                let resolver = self
+                    .resolver
+                    .as_ref()
+                    .ok_or(DeployError::DiscoveryUnavailable)?;
+                let url = resolver.resolve(&tenant, &sor).ok_or_else(|| {
+                    DeployError::Unresolved(format!("no reachable SoRX for {tenant}/{sor}"))
+                })?;
+                let client = (self.client_builder)(&url, self.token.as_deref());
+                rt.run_with_client(input, dry_run, false, client.as_ref())
+                    .map_err(|e| DeployError::Internal(e.to_string()))
+            }
+            None => rt
+                .run_input(input, dry_run, false)
+                .map_err(|e| DeployError::Internal(e.to_string())),
+        }
     }
 }
 
@@ -711,6 +726,35 @@ mod tests {
         let mgr = test_manager();
         let err = mgr.run("ghost", serde_json::json!([]), true).unwrap_err();
         assert!(matches!(err, DeployError::NotFound));
+    }
+
+    #[test]
+    fn run_discover_resolves_and_dispatches() {
+        let mgr =
+            test_manager().with_resolver(Some(Arc::new(StubResolver(Some("http://sorx".into())))));
+        let mut spec = deploy_spec("run-disc");
+        spec.sorx_url = None;
+        spec.sor = Some("orders".into());
+        mgr.deploy(spec).expect("deploy");
+        let input_path = repo_examples().join("tenancy/banking/daily-transactions.json");
+        let input: serde_json::Value =
+            serde_json::from_str(&std::fs::read_to_string(input_path).expect("read"))
+                .expect("parse");
+        let result = mgr.run("run-disc", input, true).expect("run ok");
+        assert_eq!(result.report.input_count, 3);
+    }
+
+    #[test]
+    fn run_discover_unresolved_is_error() {
+        let mgr = test_manager().with_resolver(Some(Arc::new(StubResolver(None))));
+        let mut spec = deploy_spec("run-unres");
+        spec.sorx_url = None;
+        spec.sor = Some("orders".into());
+        mgr.deploy(spec).expect("deploy");
+        let err = mgr
+            .run("run-unres", serde_json::json!([]), true)
+            .unwrap_err();
+        assert!(matches!(err, DeployError::Unresolved(_)));
     }
 
     // Reused by later resolver-consuming slices (Task 4/5).
