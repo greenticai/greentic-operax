@@ -286,6 +286,21 @@ fn run_serve(args: ServeArgs) -> Result<()> {
         }
     };
     let manager = Arc::new(manager);
+    #[cfg(feature = "events")]
+    {
+        if let Ok(events_nats_url) = std::env::var("OPERAX_EVENTS_NATS_URL") {
+            let manager_for_router = manager.clone();
+            std::thread::spawn(move || {
+                if let Err(e) =
+                    crate::business_events::run_event_router(events_nats_url, manager_for_router)
+                {
+                    eprintln!("[operax serve] event router ended: {e}");
+                }
+            });
+        } else {
+            eprintln!("[operax serve] OPERAX_EVENTS_NATS_URL unset; event routing inert");
+        }
+    }
     eprintln!("[operax serve] listening on {}", args.bind);
     operax_manager::serve::start_deployment_server(manager, &args.bind, args.secret)
 }

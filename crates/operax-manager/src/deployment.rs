@@ -434,6 +434,52 @@ impl DeploymentManager {
                 .map_err(|e| DeployError::Internal(e.to_string())),
         }
     }
+
+    /// Fan out a business event to every `Ready` deployment for `tenant`
+    /// whose runtime declares a matching `consumes` subscription for `topic`.
+    /// NATS-free: callers (e.g. a NATS subscriber) drive this directly.
+    /// A poisoned lock yields an empty `Vec` rather than panicking.
+    pub fn route_event(
+        &self,
+        tenant: &str,
+        topic: &str,
+        input: serde_json::Value,
+        dry_run: bool,
+    ) -> Vec<RouteOutcome> {
+        // Collect matching ids under the read lock, then release it before running.
+        let matched: Vec<String> = match self.slots.read() {
+            Ok(slots) => slots
+                .values()
+                .filter(|slot| {
+                    slot.record.tenant == tenant
+                        && matches!(slot.status, DeploymentStatus::Ready)
+                        && slot.runtime.as_ref().is_some_and(|rt| {
+                            rt.consumes()
+                                .iter()
+                                .any(|sub| operax_core::topic_matches(&sub.capability, topic))
+                        })
+                })
+                .map(|slot| slot.record.id.clone())
+                .collect(),
+            Err(_) => return Vec::new(),
+        };
+        matched
+            .into_iter()
+            .map(|id| {
+                let result = self.run(&id, input.clone(), dry_run);
+                RouteOutcome {
+                    deployment_id: id,
+                    result,
+                }
+            })
+            .collect()
+    }
+}
+
+#[derive(Debug)]
+pub struct RouteOutcome {
+    pub deployment_id: String,
+    pub result: Result<crate::ManagerRunResult, DeployError>,
 }
 
 #[cfg(test)]
@@ -720,6 +766,45 @@ mod tests {
         let result = mgr.run("run1", input, true).expect("run ok");
         // The tenancy fixture yields three decisions (see customer_pilot_demo test).
         assert_eq!(result.report.input_count, 3);
+    }
+
+    #[test]
+    fn route_event_runs_only_matching_same_tenant_deployments() {
+        let mgr = test_manager();
+        // static-mode deploy of the tenancy pack (declares consumes payment-recorded)
+        mgr.deploy(deploy_spec("recon")).expect("deploy"); // tenant "demo"
+        // a wrong-tenant deployment of the same pack
+        let mut other = deploy_spec("recon-other");
+        other.tenant = "other-tenant".to_string();
+        mgr.deploy(other).expect("deploy other");
+
+        // Use the REAL tenancy input so the routed run actually succeeds (a bogus
+        // payload makes the reconciliation pack error even under dry_run).
+        let input_path = repo_examples().join("tenancy/banking/daily-transactions.json");
+        let payload: serde_json::Value =
+            serde_json::from_str(&std::fs::read_to_string(input_path).expect("read fixture input"))
+                .expect("parse fixture input");
+        // matching topic for tenant "demo" -> exactly "recon" runs
+        let outcomes = mgr.route_event(
+            "demo",
+            "sorla.tenancy.payment-recorded",
+            payload.clone(),
+            true,
+        );
+        let ids: Vec<&str> = outcomes.iter().map(|o| o.deployment_id.as_str()).collect();
+        assert_eq!(ids, vec!["recon"]);
+        assert!(outcomes[0].result.is_ok());
+
+        // non-matching topic -> no deployments
+        assert!(
+            mgr.route_event("demo", "sorla.tenancy.nope", payload.clone(), true)
+                .is_empty()
+        );
+        // matching topic but wrong tenant string -> no deployments
+        assert!(
+            mgr.route_event("nobody", "sorla.tenancy.payment-recorded", payload, true)
+                .is_empty()
+        );
     }
 
     #[test]

@@ -211,6 +211,11 @@ impl ManagerRuntime {
         self.run_with_client(input, dry_run, return_card, self.client.as_ref())
     }
 
+    /// The business-event subscriptions declared by this deployment's active pack.
+    pub fn consumes(&self) -> &[operax_core::EventSubscription] {
+        &self.pack.metadata.consumes
+    }
+
     fn push_run(&self, id: String, report: RunReport) {
         let mut runs = self.runs.lock().unwrap();
         runs.push_front(StoredRun { id, report });
@@ -584,6 +589,12 @@ mod tests {
             None,
             Arc::new(MockSorxClient::default()),
         )
+    }
+
+    #[test]
+    fn consumes_accessor_returns_pack_subscriptions() {
+        let rt = runtime();
+        let _subs: &[operax_core::EventSubscription] = rt.consumes();
     }
 
     #[test]

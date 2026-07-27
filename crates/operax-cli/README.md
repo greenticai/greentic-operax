@@ -112,5 +112,42 @@ production SoR instances) and presence health-probing (verifying reachability
 instead of trusting the announcement) are planned follow-ups, not implemented
 here.
 
-Routing inbound business events to the matching deployment is a separate,
-still-unimplemented follow-on slice.
+### Business-event routing
+
+When the daemon is built with the `events` feature **and** started with
+`OPERAX_EVENTS_NATS_URL` set, `operax serve` also runs an in-process business-event
+router: it subscribes to `greentic.events.>` (all tenants, not subject-scoped) and,
+for each decoded event, routes it to **every** deployment whose pack declares a
+matching `consumes` subscription for the matching tenant, running each one for real
+(`dry_run=false`).
+
+```bash
+cargo build -p greentic-operax --features events
+
+OPERAX_EVENTS_NATS_URL=nats://localhost:4222 \
+  greentic-operax serve --bind 127.0.0.1:8099
+```
+
+A deployment's pack declares what it subscribes to via `consumes` entries in its
+`operala.yaml`, each with a `capability` cap-URI in the form
+`cap://greentic/events/<domain>/[vN/]<name>` (the version segment is optional). The
+router matches an incoming event's `topic` against every `Ready` deployment's
+declared subscriptions for the event's tenant; a match triggers a run of that
+deployment with the event payload as input.
+
+Without `OPERAX_EVENTS_NATS_URL` set, or when the daemon was built without `events`,
+event routing is inert: the daemon logs that it's disabled and starts normally
+otherwise.
+
+This slice fans events out synchronously and does not yet stamp routed runs
+distinctly from manual ones. Concretely, out of scope here:
+
+- **`caller_role` is not stamped as a business event** — a run triggered by the
+  router looks identical to a manually-triggered run to audit logging and any
+  caller-role-based policy, unlike the separate `operax events subscribe` CLI
+  command (which does stamp `caller_role: "business-event"` on its runs).
+- **No environment discrimination** — matching is scoped by tenant only, so an
+  event is routed to every matching deployment for that tenant regardless of
+  environment (e.g. staging vs. production).
+- **No concurrent fan-out** — when an event matches multiple deployments, the
+  daemon runs them sequentially, one after another, not in parallel.
