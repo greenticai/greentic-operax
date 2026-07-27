@@ -58,6 +58,15 @@ pub fn apply_presence(dir: &mut Directory, presence: SorxPresence, now: u64) {
     );
 }
 
+/// Resolve the freshest reachable SoRX `base_url` for a (tenant, sor) pair.
+/// Pure: no I/O.
+pub fn resolve_endpoint(dir: &Directory, tenant: &str, sor: &str) -> Option<String> {
+    dir.values()
+        .filter(|e| e.presence.reachable && e.presence.tenant == tenant && e.presence.sor == sor)
+        .max_by_key(|e| e.last_seen)
+        .map(|e| e.presence.base_url.clone())
+}
+
 /// Removes entries whose age (`now - last_seen`) exceeds `ttl`. Pure: no I/O.
 ///
 /// Only meaningful once the producer sends heartbeats; today's boot-only
@@ -202,5 +211,48 @@ mod tests {
     #[test]
     fn malformed_json_is_skipped() {
         assert!(decode_presence(b"not json").is_err());
+    }
+
+    #[test]
+    fn resolve_picks_freshest_reachable() {
+        fn pres(
+            instance: &str,
+            tenant: &str,
+            sor: &str,
+            url: &str,
+            reachable: bool,
+        ) -> SorxPresence {
+            SorxPresence {
+                schema: "greentic.sorx.presence.v1".into(),
+                instance_id: instance.into(),
+                tenant: tenant.into(),
+                environment: "prod".into(),
+                sor: sor.into(),
+                pack_version: "1.0.0".into(),
+                base_url: url.into(),
+                reachable,
+                offers: serde_json::Value::Null,
+                ts: "t".into(),
+            }
+        }
+        let mut dir = Directory::new();
+        apply_presence(&mut dir, pres("i1", "t1", "orders", "http://old", true), 10);
+        apply_presence(&mut dir, pres("i2", "t1", "orders", "http://new", true), 20);
+        apply_presence(
+            &mut dir,
+            pres("i3", "t1", "orders", "http://down", false),
+            30,
+        );
+        apply_presence(
+            &mut dir,
+            pres("i4", "t1", "billing", "http://other", true),
+            40,
+        );
+        assert_eq!(
+            resolve_endpoint(&dir, "t1", "orders").as_deref(),
+            Some("http://new")
+        );
+        assert_eq!(resolve_endpoint(&dir, "t1", "unknown"), None);
+        assert_eq!(resolve_endpoint(&dir, "t2", "orders"), None);
     }
 }
