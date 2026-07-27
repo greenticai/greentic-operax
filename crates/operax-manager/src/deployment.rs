@@ -20,6 +20,7 @@ pub struct DeploymentRecord {
     pub tenant: String,
     pub team: Option<String>,
     pub locale: Option<String>,
+    #[serde(default)]
     pub sorx_url: Option<String>,
     /// System-of-record identifier for dynamic SoRX discovery. `None` means
     /// this deployment is pinned to the static `sorx_url` above.

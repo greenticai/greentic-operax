@@ -304,6 +304,7 @@ fn status_text(status: u16) -> &'static str {
         405 => "Method Not Allowed",
         409 => "Conflict",
         422 => "Unprocessable Entity",
+        503 => "Service Unavailable",
         _ => "Internal Server Error",
     }
 }

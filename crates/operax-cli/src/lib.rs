@@ -263,8 +263,8 @@ fn run_serve(args: ServeArgs) -> Result<()> {
     #[cfg(feature = "events")]
     let manager = {
         use std::sync::RwLock;
-        let directory = Arc::new(RwLock::new(crate::presence::Directory::new()));
         if let Ok(nats_url) = std::env::var("OPERAX_PRESENCE_NATS_URL") {
+            let directory = Arc::new(RwLock::new(crate::presence::Directory::new()));
             let dir_for_sub = directory.clone();
             std::thread::spawn(move || {
                 let cfg = crate::presence::PresenceSubscriberConfig {
@@ -275,12 +275,15 @@ fn run_serve(args: ServeArgs) -> Result<()> {
                     eprintln!("[operax serve] presence subscriber ended: {e}");
                 }
             });
+            manager.with_resolver(Some(Arc::new(crate::presence::PresenceResolver {
+                directory,
+            })))
         } else {
-            eprintln!("[operax serve] OPERAX_PRESENCE_NATS_URL unset; discovery inert");
+            eprintln!(
+                "[operax serve] OPERAX_PRESENCE_NATS_URL unset; discovery disabled (sor deploys will 422)"
+            );
+            manager
         }
-        manager.with_resolver(Some(Arc::new(crate::presence::PresenceResolver {
-            directory,
-        })))
     };
     let manager = Arc::new(manager);
     eprintln!("[operax serve] listening on {}", args.bind);
