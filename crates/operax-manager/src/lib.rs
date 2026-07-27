@@ -10,6 +10,10 @@ use std::net::{TcpListener, TcpStream};
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 
+pub mod deployment;
+pub mod deployment_store;
+pub mod serve;
+
 #[derive(Debug, Clone)]
 pub struct ManagerOptions {
     pub artifact: PathBuf,
@@ -166,7 +170,7 @@ impl ManagerRuntime {
         Ok(json_response(200, serde_json::to_value(result)?))
     }
 
-    fn run_input(
+    pub fn run_input(
         &self,
         input: Value,
         dry_run: bool,
