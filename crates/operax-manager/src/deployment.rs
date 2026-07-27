@@ -57,6 +57,13 @@ use std::time::{SystemTime, UNIX_EPOCH};
 pub type SorxClientBuilder =
     Box<dyn Fn(&str, Option<&str>) -> Arc<dyn SorxClient + Send + Sync> + Send + Sync>;
 
+/// Resolves a live SoRX base URL for a tenant/system-of-record pair, allowing
+/// `DeploymentManager` to discover SoRX endpoints dynamically instead of
+/// relying solely on the static `sorx_url` persisted on a `DeploymentRecord`.
+pub trait SorxResolver: Send + Sync {
+    fn resolve(&self, tenant: &str, sor: &str) -> Option<String>;
+}
+
 pub struct DeploymentSlot {
     pub record: DeploymentRecord,
     /// `None` when the slot is `Failed` (its pack could not be loaded); `run`
@@ -70,6 +77,8 @@ pub struct DeploymentManager {
     store: OperaxDeploymentStore,
     token: Option<String>,
     client_builder: SorxClientBuilder,
+    #[allow(dead_code)] // consumed by run() in Task 5
+    resolver: Option<Arc<dyn SorxResolver>>,
 }
 
 pub struct DeploySpec {
@@ -125,7 +134,14 @@ impl DeploymentManager {
             store,
             token,
             client_builder,
+            resolver: None,
         }
+    }
+
+    /// Attach a `SorxResolver` for dynamic SoRX endpoint discovery.
+    pub fn with_resolver(mut self, resolver: Option<Arc<dyn SorxResolver>>) -> Self {
+        self.resolver = resolver;
+        self
     }
 
     /// Construct a manager and rebuild slots from the persisted registry.
@@ -654,5 +670,20 @@ mod tests {
         let mgr = test_manager();
         let err = mgr.run("ghost", serde_json::json!([]), true).unwrap_err();
         assert!(matches!(err, DeployError::NotFound));
+    }
+
+    // Reused by later resolver-consuming slices (Task 4/5).
+    struct StubResolver(Option<String>);
+    impl SorxResolver for StubResolver {
+        fn resolve(&self, _t: &str, _s: &str) -> Option<String> {
+            self.0.clone()
+        }
+    }
+
+    #[test]
+    fn with_resolver_sets_resolver() {
+        let mgr =
+            test_manager().with_resolver(Some(Arc::new(StubResolver(Some("http://x".into())))));
+        assert!(mgr.resolver.is_some());
     }
 }
