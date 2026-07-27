@@ -39,6 +39,8 @@ pub enum Commands {
     Events(EventsArgs),
     /// SoRX presence discovery commands.
     Presence(PresenceArgs),
+    /// Run the multi-deployment daemon.
+    Serve(ServeArgs),
 }
 
 #[derive(Debug, Parser)]
@@ -166,6 +168,30 @@ pub struct TestArgs {
     sorx_token_env: String,
 }
 
+#[derive(Debug, Parser)]
+pub struct ServeArgs {
+    /// Address to bind the HTTP server to.
+    #[arg(long, default_value = "127.0.0.1:8099")]
+    pub bind: String,
+    /// Path to the persisted deployment registry JSON.
+    #[arg(long)]
+    pub registry: Option<PathBuf>,
+    /// Optional shared secret; when set, all non-health routes require it.
+    #[arg(long)]
+    pub secret: Option<String>,
+    /// Env var holding the SoRX bearer token.
+    #[arg(long, default_value = "SORX_TOKEN")]
+    pub sorx_token_env: String,
+}
+
+fn default_registry_path() -> PathBuf {
+    // ~/.greentic/operax/deployments.json, falling back to CWD-relative if HOME unset.
+    let base = std::env::var_os("HOME")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| PathBuf::from("."));
+    base.join(".greentic/operax/deployments.json")
+}
+
 pub fn run<I, T>(args: I) -> ExitCode
 where
     I: IntoIterator<Item = T>,
@@ -215,7 +241,27 @@ fn dispatch(cli: Cli) -> Result<()> {
         Commands::Test(args) => run_test_manager(args, cli.locale),
         Commands::Events(args) => run_events(args),
         Commands::Presence(args) => run_presence(args),
+        Commands::Serve(args) => run_serve(args),
     }
+}
+
+fn run_serve(args: ServeArgs) -> Result<()> {
+    use std::sync::Arc;
+    let registry_path = args.registry.unwrap_or_else(default_registry_path);
+    let token = std::env::var(&args.sorx_token_env).ok();
+    let builder: operax_manager::deployment::SorxClientBuilder = Box::new(|url, tok| {
+        Arc::new(HttpSorxClient::new(
+            url.to_string(),
+            tok.map(str::to_string),
+        )) as Arc<dyn operax_sorx_http::SorxClient + Send + Sync>
+    });
+    let manager = Arc::new(operax_manager::deployment::DeploymentManager::load(
+        operax_manager::deployment_store::OperaxDeploymentStore::new(registry_path),
+        token,
+        builder,
+    ));
+    eprintln!("[operax serve] listening on {}", args.bind);
+    operax_manager::serve::start_deployment_server(manager, &args.bind, args.secret)
 }
 
 #[cfg(feature = "events")]
@@ -566,6 +612,19 @@ mod tests {
     #[test]
     fn maps_usage_errors_to_exit_code_two() {
         assert_eq!(exit_code(&OperaxError::new("missing_tenant", "")), 2);
+    }
+
+    #[test]
+    fn serve_args_parse_defaults() {
+        let cli = Cli::try_parse_from(["greentic-operax", "serve"]).expect("parse");
+        match cli.command {
+            Commands::Serve(args) => {
+                assert_eq!(args.bind, "127.0.0.1:8099");
+                assert_eq!(args.sorx_token_env, "SORX_TOKEN");
+                assert!(args.secret.is_none());
+            }
+            _ => panic!("expected serve"),
+        }
     }
 
     #[test]
