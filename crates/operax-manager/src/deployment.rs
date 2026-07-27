@@ -102,6 +102,9 @@ pub enum DeployError {
     PackLoad(String),
     Persist(String),
     Internal(String),
+    /// The slot exists but has no runnable runtime (e.g. its pack failed to
+    /// load at startup and it is stuck in `DeploymentStatus::Failed`).
+    DeploymentFailed,
 }
 
 fn now_unix() -> u64 {
@@ -336,6 +339,31 @@ impl DeploymentManager {
             return Err(DeployError::NotFound);
         }
         self.persist_locked(&slots)
+    }
+
+    /// Delegate a run request to the deployment's `ManagerRuntime`.
+    /// `return_card` is always `false`: the daemon returns the run report,
+    /// not a manager card.
+    pub fn run(
+        &self,
+        id: &str,
+        input: serde_json::Value,
+        dry_run: bool,
+    ) -> Result<crate::ManagerRunResult, DeployError> {
+        let slots = self
+            .slots
+            .read()
+            .map_err(|_| DeployError::Internal("lock poisoned".into()))?;
+        let slot = slots.get(id).ok_or(DeployError::NotFound)?;
+        let runtime = match (&slot.status, &slot.runtime) {
+            (DeploymentStatus::Ready, Some(rt)) => rt.clone(),
+            _ => return Err(DeployError::DeploymentFailed),
+        };
+        // Drop the read lock before running so other deployments proceed.
+        drop(slots);
+        runtime
+            .run_input(input, dry_run, false)
+            .map_err(|e| DeployError::Internal(e.to_string()))
     }
 }
 
@@ -605,5 +633,26 @@ mod tests {
             mgr.remove("gone").unwrap_err(),
             DeployError::NotFound
         ));
+    }
+
+    #[test]
+    fn run_dry_run_returns_report() {
+        let mgr = test_manager();
+        mgr.deploy(deploy_spec("run1")).expect("deploy");
+        // Read the real tenancy input at runtime (repo_examples() defined above).
+        let input_path = repo_examples().join("tenancy/banking/daily-transactions.json");
+        let input: serde_json::Value =
+            serde_json::from_str(&std::fs::read_to_string(input_path).expect("read fixture input"))
+                .expect("parse fixture input");
+        let result = mgr.run("run1", input, true).expect("run ok");
+        // The tenancy fixture yields three decisions (see customer_pilot_demo test).
+        assert_eq!(result.report.input_count, 3);
+    }
+
+    #[test]
+    fn run_unknown_id_is_not_found() {
+        let mgr = test_manager();
+        let err = mgr.run("ghost", serde_json::json!([]), true).unwrap_err();
+        assert!(matches!(err, DeployError::NotFound));
     }
 }

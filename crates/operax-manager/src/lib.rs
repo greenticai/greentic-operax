@@ -169,7 +169,7 @@ impl ManagerRuntime {
         Ok(json_response(200, serde_json::to_value(result)?))
     }
 
-    fn run_input(
+    pub fn run_input(
         &self,
         input: Value,
         dry_run: bool,
