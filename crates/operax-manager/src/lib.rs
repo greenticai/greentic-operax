@@ -170,11 +170,12 @@ impl ManagerRuntime {
         Ok(json_response(200, serde_json::to_value(result)?))
     }
 
-    pub fn run_input(
+    pub fn run_with_client(
         &self,
         input: Value,
         dry_run: bool,
         return_card: bool,
+        client: &(dyn SorxClient + Send + Sync),
     ) -> Result<ManagerRunResult> {
         let ctx = OperaxContext::new(
             self.tenant.clone(),
@@ -188,7 +189,7 @@ impl ManagerRuntime {
             input,
             dry_run,
             self.audit_dir.as_deref(),
-            self.client.as_ref(),
+            client,
         )?;
         let run_id = format!("run_{}", ctx.request_id.replace('-', "_"));
         self.push_run(run_id.clone(), report.clone());
@@ -199,6 +200,15 @@ impl ManagerRuntime {
             report,
             card,
         })
+    }
+
+    pub fn run_input(
+        &self,
+        input: Value,
+        dry_run: bool,
+        return_card: bool,
+    ) -> Result<ManagerRunResult> {
+        self.run_with_client(input, dry_run, return_card, self.client.as_ref())
     }
 
     fn push_run(&self, id: String, report: RunReport) {
@@ -617,5 +627,32 @@ mod tests {
             r#"{"input":{"transaction_id":"bank_tx_001","booked_at":"2026-06-02","amount":1250.0,"currency":"GBP","reference":"TEN-001","api_key":"secret"}}"#,
         );
         assert_eq!(response.status, 400);
+    }
+
+    #[test]
+    fn run_with_client_matches_run_input_for_same_client() {
+        let input = serde_json::json!({
+            "source": "bank",
+            "date": "2026-06-02",
+            "transactions": [{
+                "transaction_id": "bank_tx_001",
+                "booked_at": "2026-06-02",
+                "amount": 1250.0,
+                "currency": "GBP",
+                "reference": "TEN-001 June Rent"
+            }]
+        });
+
+        let via_run_input = runtime()
+            .run_input(input.clone(), true, false)
+            .expect("run_input should succeed");
+
+        let explicit_client = MockSorxClient::default();
+        let via_run_with_client = runtime()
+            .run_with_client(input, true, false, &explicit_client)
+            .expect("run_with_client should succeed");
+
+        assert_eq!(via_run_input.schema, via_run_with_client.schema);
+        assert_eq!(via_run_input.report, via_run_with_client.report);
     }
 }
