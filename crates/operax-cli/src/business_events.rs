@@ -154,23 +154,38 @@ pub fn run_event_router(
                 }
             };
             let tenant = env.tenant.tenant.to_string();
-            let outcomes = manager.route_event(&tenant, &env.topic, env.payload.clone(), false);
+            let topic = env.topic.clone();
+            let payload = env.payload.clone();
+            let manager = manager.clone();
+            let route_topic = topic.clone();
+            let outcomes = match tokio::task::spawn_blocking(move || {
+                manager.route_event(&tenant, &route_topic, payload, false)
+            })
+            .await
+            {
+                Ok(outcomes) => outcomes,
+                Err(join_err) => {
+                    eprintln!("[operax serve] event route task failed to join: {join_err}");
+                    continue;
+                }
+            };
             if outcomes.is_empty() {
-                eprintln!("[operax serve] event {} matched no deployments", env.topic);
+                eprintln!("[operax serve] event {topic} matched no deployments");
             }
             for outcome in outcomes {
                 match &outcome.result {
                     Ok(_) => eprintln!(
-                        "[operax serve] routed {} -> {}: ok",
-                        env.topic, outcome.deployment_id
+                        "[operax serve] routed {topic} -> {}: ok",
+                        outcome.deployment_id
                     ),
                     Err(e) => eprintln!(
-                        "[operax serve] routed {} -> {}: failed: {e:?}",
-                        env.topic, outcome.deployment_id
+                        "[operax serve] routed {topic} -> {}: failed: {e:?}",
+                        outcome.deployment_id
                     ),
                 }
             }
         }
+        eprintln!("[operax serve] event router subscription ended; routing stopped");
         Ok::<(), anyhow::Error>(())
     })
 }
