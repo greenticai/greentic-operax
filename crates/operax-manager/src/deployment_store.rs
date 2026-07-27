@@ -100,7 +100,8 @@ mod tests {
                 tenant: "t".into(),
                 team: None,
                 locale: None,
-                sorx_url: "http://x".into(),
+                sorx_url: Some("http://x".into()),
+                sor: None,
                 active: DeploymentVersion {
                     version: 2,
                     gtpack_path: PathBuf::from("/tmp/p.gtpack"),
