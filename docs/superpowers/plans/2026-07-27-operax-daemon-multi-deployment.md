@@ -1017,7 +1017,7 @@ mod tests {
 
     fn deploy_body() -> Vec<u8> {
         let handoff = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .join("../operax-cli/examples/tenancy/handoff");
+            .join("../../examples/tenancy/handoff"); // repo-root fixtures
         serde_json::to_vec(&serde_json::json!({
             "id": "d1",
             "gtpack_path": handoff,
