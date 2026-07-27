@@ -60,6 +60,8 @@ pub fn apply_presence(dir: &mut Directory, presence: SorxPresence, now: u64) {
 
 /// Resolve the freshest reachable SoRX `base_url` for a (tenant, sor) pair.
 /// Pure: no I/O.
+// Consumed by `PresenceResolver` in Task 8; unused in the non-test lib build until then.
+#[allow(dead_code)]
 pub fn resolve_endpoint(dir: &Directory, tenant: &str, sor: &str) -> Option<String> {
     dir.values()
         .filter(|e| e.presence.reachable && e.presence.tenant == tenant && e.presence.sor == sor)
