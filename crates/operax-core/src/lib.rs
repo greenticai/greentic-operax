@@ -386,6 +386,62 @@ pub fn looks_secret_like(value: &Value) -> bool {
     }
 }
 
+const EVENTS_CAP_PREFIX: &str = "cap://greentic/events/";
+
+/// Keep `[A-Za-z0-9_-]`, map every other char (incl. `.`) to `-` — mirrors SoRX's
+/// topic-segment sanitization.
+fn sanitize_segment(s: &str) -> String {
+    s.chars()
+        .map(|c| {
+            if c.is_ascii_alphanumeric() || c == '_' || c == '-' {
+                c
+            } else {
+                '-'
+            }
+        })
+        .collect()
+}
+
+/// Parse an events cap into `(domain, name)`, tolerating an optional `vN` version
+/// segment (`cap://greentic/events/<domain>/[v1/]<name>`). `None` for non-events caps.
+fn cap_domain_name(cap: &str) -> Option<(String, String)> {
+    let rest = cap.strip_prefix(EVENTS_CAP_PREFIX)?;
+    let mut segs: Vec<&str> = rest.split('/').filter(|s| !s.is_empty()).collect();
+    if segs.len() < 2 {
+        return None;
+    }
+    let name = segs.pop()?;
+    if segs.len() > 1
+        && segs.last().is_some_and(|s| {
+            s.len() >= 2 && s.starts_with('v') && s[1..].chars().all(|c| c.is_ascii_digit())
+        })
+    {
+        segs.pop();
+    }
+    let domain = segs.join("-");
+    Some((domain, name.to_string()))
+}
+
+/// Returns `true` when a business event on `topic` is a delivery for the SoRLa
+/// capability `capability`. Tries both entity-lifecycle and command publish shapes.
+pub fn topic_matches(capability: &str, topic: &str) -> bool {
+    let Some((domain, name)) = cap_domain_name(capability) else {
+        return false;
+    };
+    let san_domain = sanitize_segment(&domain);
+    let entity_tail = format!(
+        "{san_domain}.{}",
+        name.split('.')
+            .map(sanitize_segment)
+            .collect::<Vec<_>>()
+            .join(".")
+    );
+    let command_tail = format!("{san_domain}.{}", sanitize_segment(&name));
+    [entity_tail, command_tail]
+        .into_iter()
+        .any(|tail| topic == format!("sorla.{tail}"))
+}
+
 fn unique_request_id() -> String {
     let nanos = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
@@ -413,6 +469,30 @@ mod tests {
         assert!(headers.contains(&("X-Greentic-Caller-Id".into(), "operax".into())));
         assert!(headers.contains(&("X-Greentic-Team".into(), "ops".into())));
         assert!(headers.contains(&("Authorization".into(), "Bearer secret".into())));
+    }
+
+    #[test]
+    fn topic_matches_entity_and_command_forms() {
+        // command form: cap .../tenancy/v1/payment-recorded -> sorla.tenancy.payment-recorded
+        assert!(topic_matches(
+            "cap://greentic/events/tenancy/v1/payment-recorded",
+            "sorla.tenancy.payment-recorded"
+        ));
+        // non-events cap -> never matches
+        assert!(!topic_matches(
+            "cap://greentic/other/x",
+            "sorla.tenancy.payment-recorded"
+        ));
+        // wrong topic -> no match
+        assert!(!topic_matches(
+            "cap://greentic/events/tenancy/v1/payment-recorded",
+            "sorla.tenancy.other"
+        ));
+        // entity form: name with a dot -> sorla.<domain>.<Entity>.<op>
+        assert!(topic_matches(
+            "cap://greentic/events/tenancy/Payment.created",
+            "sorla.tenancy.Payment.created"
+        ));
     }
 
     #[test]
