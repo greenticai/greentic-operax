@@ -16,71 +16,12 @@ use operax_pack_loader::load_operational_pack;
 use operax_runtime::{RunRequest, run_artifact_with_client};
 use operax_sorx_http::HttpSorxClient;
 
-const EVENTS_CAP_PREFIX: &str = "cap://greentic/events/";
-
-/// Keep `[A-Za-z0-9_-]`, map every other char (incl. `.`) to `-` — mirrors SoRX's topic-segment
-/// sanitization so a declared cap resolves to the topic SoRX actually publishes.
-fn sanitize_segment(s: &str) -> String {
-    s.chars()
-        .map(|c| {
-            if c.is_ascii_alphanumeric() || c == '_' || c == '-' {
-                c
-            } else {
-                '-'
-            }
-        })
-        .collect()
-}
-
-/// Parse an events cap into `(domain, name)`, tolerating an optional `vN` version segment
-/// (`cap://greentic/events/<domain>/[v1/]<name>`). Returns `None` for non-events caps.
-fn cap_domain_name(cap: &str) -> Option<(String, String)> {
-    let rest = cap.strip_prefix(EVENTS_CAP_PREFIX)?;
-    let mut segs: Vec<&str> = rest.split('/').filter(|s| !s.is_empty()).collect();
-    if segs.len() < 2 {
-        return None;
-    }
-    let name = segs.pop()?;
-    // Drop a trailing version segment if present (e.g. ".../v1/name"), but only when at
-    // least one segment would remain as `domain` — otherwise a pack literally named
-    // `v1`/`v2` would resolve to a blank domain.
-    if segs.len() > 1
-        && segs.last().is_some_and(|s| {
-            s.len() >= 2 && s.starts_with('v') && s[1..].chars().all(|c| c.is_ascii_digit())
-        })
-    {
-        segs.pop();
-    }
-    let domain = segs.join("-");
-    Some((domain, name.to_string()))
-}
-
 /// Returns `true` when `env` is a delivery for the business event declared by `sub`.
 ///
-/// The cap string alone can't tell whether SoRX published this as an entity-lifecycle
-/// (CRUD) event or a command event, so both publish shapes are tried:
-/// - entity form: `<pack>/<Entity>.<op>` → `sorla.<san(pack)>.<san(Entity)>.<san(op)>`
-///   (each dot-separated part of `name` sanitized independently, dots kept as separators).
-/// - command form: `<pack>/<event_name>` → `sorla.<san(pack)>.<san(event_name)>`
-///   (`name` sanitized as a single segment, dots collapsed to dashes).
+/// Delegates to `operax_core::topic_matches`, which owns the cap↔topic sanitization and
+/// entity/command publish-shape matching logic (moved out of this crate in slice 3).
 pub fn event_matches(sub: &EventSubscription, env: &EventEnvelope) -> bool {
-    let Some((domain, name)) = cap_domain_name(&sub.capability) else {
-        return false;
-    };
-    let san_domain = sanitize_segment(&domain);
-
-    let entity_tail = format!(
-        "{san_domain}.{}",
-        name.split('.')
-            .map(sanitize_segment)
-            .collect::<Vec<_>>()
-            .join(".")
-    );
-    let command_tail = format!("{san_domain}.{}", sanitize_segment(&name));
-
-    [entity_tail, command_tail]
-        .into_iter()
-        .any(|tail| env.topic == format!("sorla.{tail}"))
+    operax_core::topic_matches(&sub.capability, &env.topic)
 }
 
 /// Configuration for [`run_subscriber`]: the NATS endpoint to connect to, the
