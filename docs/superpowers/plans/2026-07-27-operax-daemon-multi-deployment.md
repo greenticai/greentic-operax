@@ -342,15 +342,23 @@ impl operax_sorx_http::SorxClient for StubClient {
     // test-only code, so panics are acceptable. Match the real trait signature.
 }
 
+// Unique registry path PER CALL — `cargo test` runs these in parallel and they
+// must NOT share a file (a shared registry path races on the tmp-write+rename in
+// OperaxDeploymentStore::save and fails with ENOENT). pid alone is not unique
+// across tests in one process, so add a monotonic counter.
+fn unique_registry_path() -> std::path::PathBuf {
+    use std::sync::atomic::{AtomicU64, Ordering};
+    static COUNTER: AtomicU64 = AtomicU64::new(0);
+    let n = COUNTER.fetch_add(1, Ordering::Relaxed);
+    let mut p = std::env::temp_dir();
+    p.push(format!("operax-mgr-{}-{}.json", std::process::id(), n));
+    let _ = std::fs::remove_file(&p);
+    p
+}
+
 fn test_manager() -> DeploymentManager {
-    let path = {
-        let mut p = std::env::temp_dir();
-        p.push(format!("operax-mgr-{}.json", std::process::id()));
-        let _ = std::fs::remove_file(&p);
-        p
-    };
     DeploymentManager::new(
-        crate::deployment_store::OperaxDeploymentStore::new(path),
+        crate::deployment_store::OperaxDeploymentStore::new(unique_registry_path()),
         None,
         Box::new(|_url, _tok| Arc::new(StubClient) as Arc<dyn operax_sorx_http::SorxClient + Send + Sync>),
     )
@@ -989,13 +997,22 @@ mod tests {
     struct StubClient;
     impl operax_sorx_http::SorxClient for StubClient { /* unimplemented!() bodies */ }
 
-    fn mgr() -> DeploymentManager {
+    // Unique registry path per call — parallel tests must not share a registry
+    // file (races the tmp-write+rename in save()). pid alone is not unique.
+    fn unique_path() -> std::path::PathBuf {
+        use std::sync::atomic::{AtomicU64, Ordering};
+        static COUNTER: AtomicU64 = AtomicU64::new(0);
+        let n = COUNTER.fetch_add(1, Ordering::Relaxed);
         let mut p = std::env::temp_dir();
-        p.push(format!("operax-serve-{}.json", std::process::id()));
+        p.push(format!("operax-serve-{}-{}.json", std::process::id(), n));
         let _ = std::fs::remove_file(&p);
+        p
+    }
+
+    fn mgr() -> DeploymentManager {
         let builder: SorxClientBuilder =
             Box::new(|_u, _t| Arc::new(StubClient) as Arc<dyn operax_sorx_http::SorxClient + Send + Sync>);
-        DeploymentManager::new(OperaxDeploymentStore::new(p), None, builder)
+        DeploymentManager::new(OperaxDeploymentStore::new(unique_path()), None, builder)
     }
 
     fn deploy_body() -> Vec<u8> {
