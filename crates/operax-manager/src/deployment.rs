@@ -778,7 +778,12 @@ mod tests {
         other.tenant = "other-tenant".to_string();
         mgr.deploy(other).expect("deploy other");
 
-        let payload = serde_json::json!({ "example": true });
+        // Use the REAL tenancy input so the routed run actually succeeds (a bogus
+        // payload makes the reconciliation pack error even under dry_run).
+        let input_path = repo_examples().join("tenancy/banking/daily-transactions.json");
+        let payload: serde_json::Value =
+            serde_json::from_str(&std::fs::read_to_string(input_path).expect("read fixture input"))
+                .expect("parse fixture input");
         // matching topic for tenant "demo" -> exactly "recon" runs
         let outcomes = mgr.route_event(
             "demo",

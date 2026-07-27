@@ -210,7 +210,11 @@ fn route_event_runs_only_matching_same_tenant_deployments() {
     other.tenant = "other-tenant".to_string();
     mgr.deploy(other).expect("deploy other");
 
-    let payload = serde_json::json!({ "example": true });
+    // Real tenancy input so the routed run succeeds (a bogus payload errors the
+    // reconciliation pack even under dry_run).
+    let input_path = repo_examples().join("tenancy/banking/daily-transactions.json");
+    let payload: serde_json::Value =
+        serde_json::from_str(&std::fs::read_to_string(input_path).expect("read")).expect("parse");
     // matching topic for tenant "demo" -> exactly "recon" runs
     let outcomes = mgr.route_event("demo", "sorla.tenancy.payment-recorded", payload.clone(), true);
     let ids: Vec<&str> = outcomes.iter().map(|o| o.deployment_id.as_str()).collect();
