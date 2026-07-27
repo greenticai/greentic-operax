@@ -331,42 +331,13 @@ mod tests {
         )
     }
 
-    /// Build a minimal valid handoff-directory pack, mirroring the fixture
-    /// `write_handoff` helper in `operax-pack-loader`'s own tests. The repo has
-    /// no pre-built `.gtpack`/handoff fixture on disk yet, so tests construct
-    /// one on the fly; `TempDir::keep` leaks it (test-only) so the directory
-    /// outlives this helper and remains readable by `deploy`.
+    // The tenancy fixtures live at the REPO ROOT `examples/` (not under any crate).
+    fn repo_examples() -> PathBuf {
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../examples")
+    }
+
     fn fixture_gtpack() -> PathBuf {
-        let temp = tempfile::tempdir().expect("tempdir");
-        let root = temp.path();
-        std::fs::write(
-            root.join("operala.yaml"),
-            r#"
-schema: greentic.operala.handoff.v1
-capability: reconciliation
-extension: greentic.operala.reconciliation.v1
-tenant_required: true
-team_optional: true
-sorla:
-  source_digest: sha256:0000000000000000000000000000000000000000000000000000000000000000
-sorx:
-  transport: http
-  url: runtime-provided
-"#,
-        )
-        .expect("write operala.yaml");
-        std::fs::write(root.join("operala-handoff.json"), r#"{"ok":true}"#)
-            .expect("write operala-handoff.json");
-        std::fs::create_dir(root.join("flows")).expect("create flows dir");
-        std::fs::write(
-            root.join("flows/ingest-transaction.flow.yaml"),
-            "name: ingest",
-        )
-        .expect("write flow");
-        std::fs::create_dir(root.join("schemas")).expect("create schemas dir");
-        std::fs::write(root.join("schemas/bank-transaction.schema.json"), "{}")
-            .expect("write schema");
-        temp.keep()
+        repo_examples().join("tenancy/handoff")
     }
 
     fn deploy_spec(id: &str) -> DeploySpec {
