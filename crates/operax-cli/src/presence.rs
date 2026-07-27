@@ -60,8 +60,6 @@ pub fn apply_presence(dir: &mut Directory, presence: SorxPresence, now: u64) {
 
 /// Resolve the freshest reachable SoRX `base_url` for a (tenant, sor) pair.
 /// Pure: no I/O.
-// Consumed by `PresenceResolver` in Task 8; unused in the non-test lib build until then.
-#[allow(dead_code)]
 pub fn resolve_endpoint(dir: &Directory, tenant: &str, sor: &str) -> Option<String> {
     dir.values()
         .filter(|e| e.presence.reachable && e.presence.tenant == tenant && e.presence.sor == sor)
@@ -90,6 +88,18 @@ fn decode_presence(payload: &[u8]) -> Result<SorxPresence, serde_json::Error> {
 pub struct PresenceSubscriberConfig {
     pub nats_url: String,
     pub tenant: Option<String>,
+}
+
+/// Resolves SoRX endpoints from the live presence directory.
+pub struct PresenceResolver {
+    pub directory: std::sync::Arc<std::sync::RwLock<Directory>>,
+}
+
+impl operax_manager::deployment::SorxResolver for PresenceResolver {
+    fn resolve(&self, tenant: &str, sor: &str) -> Option<String> {
+        let dir = self.directory.read().ok()?;
+        resolve_endpoint(&dir, tenant, sor)
+    }
 }
 
 /// Current tick (Unix seconds) used to timestamp directory entries. Falls
@@ -286,6 +296,26 @@ mod tests {
         let guard = dir.read().unwrap();
         assert_eq!(
             resolve_endpoint(&guard, "t1", "orders").as_deref(),
+            Some("http://new")
+        );
+    }
+
+    #[test]
+    fn presence_resolver_delegates() {
+        use std::sync::{Arc, RwLock};
+
+        let dir = Arc::new(RwLock::new(Directory::new()));
+        {
+            let mut guard = dir.write().unwrap();
+            apply_presence(
+                &mut guard,
+                presence_with_url("i1", "t1", "orders", "http://new"),
+                10,
+            );
+        }
+        let resolver = PresenceResolver { directory: dir };
+        assert_eq!(
+            operax_manager::deployment::SorxResolver::resolve(&resolver, "t1", "orders").as_deref(),
             Some("http://new")
         );
     }
