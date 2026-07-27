@@ -126,6 +126,55 @@ pub fn run_subscriber(config: SubscriberConfig) -> anyhow::Result<()> {
     })
 }
 
+/// Routes NATS business events into the deployment registry. Subscribes to
+/// `greentic.events.>` (all tenants, not tenant-scoped) and, for each decoded
+/// [`EventEnvelope`], calls [`operax_manager::deployment::DeploymentManager::route_event`]
+/// for a real (non-dry-run) routing pass, logging each [`operax_manager::deployment::RouteOutcome`].
+///
+/// Blocking: spins its own current-thread tokio runtime, so the caller should run this
+/// on a dedicated thread. Not exercised by unit tests here (no live NATS broker available);
+/// the routing logic itself is covered by `route_event`'s own tests and a follow-up e2e task.
+pub fn run_event_router(
+    nats_url: String,
+    manager: std::sync::Arc<operax_manager::deployment::DeploymentManager>,
+) -> anyhow::Result<()> {
+    let rt = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()?;
+    rt.block_on(async move {
+        let client = async_nats::connect(&nats_url).await?;
+        let mut subscriber = client.subscribe("greentic.events.>").await?;
+        eprintln!("[operax serve] event router subscribed to greentic.events.>");
+        while let Some(msg) = subscriber.next().await {
+            let env: EventEnvelope = match serde_json::from_slice(&msg.payload) {
+                Ok(env) => env,
+                Err(err) => {
+                    eprintln!("skip undecodable event on {}: {err}", msg.subject);
+                    continue;
+                }
+            };
+            let tenant = env.tenant.tenant.to_string();
+            let outcomes = manager.route_event(&tenant, &env.topic, env.payload.clone(), false);
+            if outcomes.is_empty() {
+                eprintln!("[operax serve] event {} matched no deployments", env.topic);
+            }
+            for outcome in outcomes {
+                match &outcome.result {
+                    Ok(_) => eprintln!(
+                        "[operax serve] routed {} -> {}: ok",
+                        env.topic, outcome.deployment_id
+                    ),
+                    Err(e) => eprintln!(
+                        "[operax serve] routed {} -> {}: failed: {e:?}",
+                        env.topic, outcome.deployment_id
+                    ),
+                }
+            }
+        }
+        Ok::<(), anyhow::Error>(())
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
