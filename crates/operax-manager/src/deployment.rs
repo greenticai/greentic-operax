@@ -315,15 +315,19 @@ mod tests {
         }
     }
 
+    fn unique_registry_path() -> PathBuf {
+        use std::sync::atomic::{AtomicU64, Ordering};
+        static COUNTER: AtomicU64 = AtomicU64::new(0);
+        let n = COUNTER.fetch_add(1, Ordering::Relaxed);
+        let mut p = std::env::temp_dir();
+        p.push(format!("operax-mgr-{}-{}.json", std::process::id(), n));
+        let _ = std::fs::remove_file(&p);
+        p
+    }
+
     fn test_manager() -> DeploymentManager {
-        let path = {
-            let mut p = std::env::temp_dir();
-            p.push(format!("operax-mgr-{}.json", std::process::id()));
-            let _ = std::fs::remove_file(&p);
-            p
-        };
         DeploymentManager::new(
-            crate::deployment_store::OperaxDeploymentStore::new(path),
+            crate::deployment_store::OperaxDeploymentStore::new(unique_registry_path()),
             None,
             Box::new(|_url, _tok| {
                 Arc::new(StubClient) as Arc<dyn operax_sorx_http::SorxClient + Send + Sync>
