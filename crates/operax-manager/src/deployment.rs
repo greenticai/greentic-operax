@@ -20,7 +20,12 @@ pub struct DeploymentRecord {
     pub tenant: String,
     pub team: Option<String>,
     pub locale: Option<String>,
-    pub sorx_url: String,
+    #[serde(default)]
+    pub sorx_url: Option<String>,
+    /// System-of-record identifier for dynamic SoRX discovery. `None` means
+    /// this deployment is pinned to the static `sorx_url` above.
+    #[serde(default)]
+    pub sor: Option<String>,
     pub active: DeploymentVersion,
     /// Previous versions, newest-first, capped (see `HISTORY_CAP`).
     #[serde(default)]
@@ -57,6 +62,13 @@ use std::time::{SystemTime, UNIX_EPOCH};
 pub type SorxClientBuilder =
     Box<dyn Fn(&str, Option<&str>) -> Arc<dyn SorxClient + Send + Sync> + Send + Sync>;
 
+/// Resolves a live SoRX base URL for a tenant/system-of-record pair, allowing
+/// `DeploymentManager` to discover SoRX endpoints dynamically instead of
+/// relying solely on the static `sorx_url` persisted on a `DeploymentRecord`.
+pub trait SorxResolver: Send + Sync {
+    fn resolve(&self, tenant: &str, sor: &str) -> Option<String>;
+}
+
 pub struct DeploymentSlot {
     pub record: DeploymentRecord,
     /// `None` when the slot is `Failed` (its pack could not be loaded); `run`
@@ -70,6 +82,7 @@ pub struct DeploymentManager {
     store: OperaxDeploymentStore,
     token: Option<String>,
     client_builder: SorxClientBuilder,
+    resolver: Option<Arc<dyn SorxResolver>>,
 }
 
 pub struct DeploySpec {
@@ -78,7 +91,11 @@ pub struct DeploySpec {
     pub tenant: String,
     pub team: Option<String>,
     pub locale: Option<String>,
-    pub sorx_url: String,
+    pub sorx_url: Option<String>,
+    /// System-of-record identifier for dynamic SoRX discovery. Mutually
+    /// optional with `sorx_url`: at least one must be set (enforced in
+    /// `deploy`).
+    pub sor: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -105,6 +122,12 @@ pub enum DeployError {
     /// The slot exists but has no runnable runtime (e.g. its pack failed to
     /// load at startup and it is stuck in `DeploymentStatus::Failed`).
     DeploymentFailed,
+    /// The request is malformed (e.g. neither `sorx_url` nor `sor` given).
+    BadRequest(String),
+    /// Discovery via `sor` could not resolve a live SoRX endpoint.
+    Unresolved(String),
+    /// `sor` was requested but no `SorxResolver` is configured.
+    DiscoveryUnavailable,
 }
 
 fn now_unix() -> u64 {
@@ -125,7 +148,14 @@ impl DeploymentManager {
             store,
             token,
             client_builder,
+            resolver: None,
         }
+    }
+
+    /// Attach a `SorxResolver` for dynamic SoRX endpoint discovery.
+    pub fn with_resolver(mut self, resolver: Option<Arc<dyn SorxResolver>>) -> Self {
+        self.resolver = resolver;
+        self
     }
 
     /// Construct a manager and rebuild slots from the persisted registry.
@@ -173,7 +203,11 @@ impl DeploymentManager {
     fn build_runtime(&self, record: &DeploymentRecord) -> Result<Arc<ManagerRuntime>, DeployError> {
         let pack = operax_pack_loader::load_operational_pack(&record.active.gtpack_path)
             .map_err(|e| DeployError::PackLoad(e.to_string()))?;
-        let client = (self.client_builder)(&record.sorx_url, self.token.as_deref());
+        let frozen_url = record
+            .sorx_url
+            .as_deref()
+            .unwrap_or("http://unresolved.discover");
+        let client = (self.client_builder)(frozen_url, self.token.as_deref());
         // ManagerRuntime::new is infallible (returns Self).
         let runtime = ManagerRuntime::new(
             pack,
@@ -196,6 +230,14 @@ impl DeploymentManager {
     }
 
     pub fn deploy(&self, spec: DeploySpec) -> Result<DeploymentSummary, DeployError> {
+        if spec.sorx_url.is_none() && spec.sor.is_none() {
+            return Err(DeployError::BadRequest(
+                "deploy requires sorx_url or sor".into(),
+            ));
+        }
+        if spec.sor.is_some() && self.resolver.is_none() {
+            return Err(DeployError::DiscoveryUnavailable);
+        }
         let mut slots = self
             .slots
             .write()
@@ -207,7 +249,11 @@ impl DeploymentManager {
         let pack = operax_pack_loader::load_operational_pack(&spec.gtpack_path)
             .map_err(|e| DeployError::PackLoad(e.to_string()))?;
         let digest = pack.pack_digest.clone();
-        let client = (self.client_builder)(&spec.sorx_url, self.token.as_deref());
+        let frozen_url = spec
+            .sorx_url
+            .as_deref()
+            .unwrap_or("http://unresolved.discover");
+        let client = (self.client_builder)(frozen_url, self.token.as_deref());
         // ManagerRuntime::new is infallible (returns Self).
         let runtime = ManagerRuntime::new(
             pack,
@@ -223,6 +269,7 @@ impl DeploymentManager {
             team: spec.team,
             locale: spec.locale,
             sorx_url: spec.sorx_url,
+            sor: spec.sor,
             active: DeploymentVersion {
                 version: 1,
                 gtpack_path: spec.gtpack_path,
@@ -295,7 +342,12 @@ impl DeploymentManager {
         let digest = pack.pack_digest.clone();
 
         let slot = slots.get_mut(id).ok_or(DeployError::NotFound)?;
-        let client = (self.client_builder)(&slot.record.sorx_url, self.token.as_deref());
+        let frozen_url = slot
+            .record
+            .sorx_url
+            .as_deref()
+            .unwrap_or("http://unresolved.discover");
+        let client = (self.client_builder)(frozen_url, self.token.as_deref());
         // ManagerRuntime::new is infallible (returns Self).
         let runtime = ManagerRuntime::new(
             pack,
@@ -355,15 +407,32 @@ impl DeploymentManager {
             .read()
             .map_err(|_| DeployError::Internal("lock poisoned".into()))?;
         let slot = slots.get(id).ok_or(DeployError::NotFound)?;
-        let runtime = match (&slot.status, &slot.runtime) {
+        let rt = match (&slot.status, &slot.runtime) {
             (DeploymentStatus::Ready, Some(rt)) => rt.clone(),
             _ => return Err(DeployError::DeploymentFailed),
         };
+        let discover = slot.record.sor.clone();
+        let tenant = slot.record.tenant.clone();
         // Drop the read lock before running so other deployments proceed.
         drop(slots);
-        runtime
-            .run_input(input, dry_run, false)
-            .map_err(|e| DeployError::Internal(e.to_string()))
+
+        match discover {
+            Some(sor) => {
+                let resolver = self
+                    .resolver
+                    .as_ref()
+                    .ok_or(DeployError::DiscoveryUnavailable)?;
+                let url = resolver.resolve(&tenant, &sor).ok_or_else(|| {
+                    DeployError::Unresolved(format!("no reachable SoRX for {tenant}/{sor}"))
+                })?;
+                let client = (self.client_builder)(&url, self.token.as_deref());
+                rt.run_with_client(input, dry_run, false, client.as_ref())
+                    .map_err(|e| DeployError::Internal(e.to_string()))
+            }
+            None => rt
+                .run_input(input, dry_run, false)
+                .map_err(|e| DeployError::Internal(e.to_string())),
+        }
     }
 }
 
@@ -389,7 +458,8 @@ mod tests {
                 tenant: "demo".to_string(),
                 team: Some("property-ops".to_string()),
                 locale: None,
-                sorx_url: "http://localhost:8088".to_string(),
+                sorx_url: Some("http://localhost:8088".to_string()),
+                sor: None,
                 active: sample_version(1),
                 history: vec![],
             }],
@@ -487,7 +557,8 @@ mod tests {
             tenant: "demo".to_string(),
             team: Some("property-ops".to_string()),
             locale: None,
-            sorx_url: "http://localhost:8088".to_string(),
+            sorx_url: Some("http://localhost:8088".to_string()),
+            sor: None,
         }
     }
 
@@ -579,7 +650,8 @@ mod tests {
             tenant: "demo".into(),
             team: None,
             locale: None,
-            sorx_url: "http://x".into(),
+            sorx_url: Some("http://x".into()),
+            sor: None,
             active: DeploymentVersion {
                 version: 1,
                 gtpack_path: fixture_gtpack(),
@@ -593,7 +665,8 @@ mod tests {
             tenant: "demo".into(),
             team: None,
             locale: None,
-            sorx_url: "http://x".into(),
+            sorx_url: Some("http://x".into()),
+            sor: None,
             active: DeploymentVersion {
                 version: 1,
                 gtpack_path: std::path::PathBuf::from("/nonexistent/x.gtpack"),
@@ -654,5 +727,84 @@ mod tests {
         let mgr = test_manager();
         let err = mgr.run("ghost", serde_json::json!([]), true).unwrap_err();
         assert!(matches!(err, DeployError::NotFound));
+    }
+
+    #[test]
+    fn run_discover_resolves_and_dispatches() {
+        let mgr =
+            test_manager().with_resolver(Some(Arc::new(StubResolver(Some("http://sorx".into())))));
+        let mut spec = deploy_spec("run-disc");
+        spec.sorx_url = None;
+        spec.sor = Some("orders".into());
+        mgr.deploy(spec).expect("deploy");
+        let input_path = repo_examples().join("tenancy/banking/daily-transactions.json");
+        let input: serde_json::Value =
+            serde_json::from_str(&std::fs::read_to_string(input_path).expect("read"))
+                .expect("parse");
+        let result = mgr.run("run-disc", input, true).expect("run ok");
+        assert_eq!(result.report.input_count, 3);
+    }
+
+    #[test]
+    fn run_discover_unresolved_is_error() {
+        let mgr = test_manager().with_resolver(Some(Arc::new(StubResolver(None))));
+        let mut spec = deploy_spec("run-unres");
+        spec.sorx_url = None;
+        spec.sor = Some("orders".into());
+        mgr.deploy(spec).expect("deploy");
+        let err = mgr
+            .run("run-unres", serde_json::json!([]), true)
+            .unwrap_err();
+        assert!(matches!(err, DeployError::Unresolved(_)));
+    }
+
+    // Reused by later resolver-consuming slices (Task 4/5).
+    struct StubResolver(Option<String>);
+    impl SorxResolver for StubResolver {
+        fn resolve(&self, _t: &str, _s: &str) -> Option<String> {
+            self.0.clone()
+        }
+    }
+
+    #[test]
+    fn with_resolver_sets_resolver() {
+        let mgr =
+            test_manager().with_resolver(Some(Arc::new(StubResolver(Some("http://x".into())))));
+        assert!(mgr.resolver.is_some());
+    }
+
+    #[test]
+    fn deploy_requires_url_or_sor() {
+        let mgr = test_manager();
+        let mut spec = deploy_spec("nofields");
+        spec.sorx_url = None;
+        spec.sor = None;
+        assert!(matches!(
+            mgr.deploy(spec).unwrap_err(),
+            DeployError::BadRequest(_)
+        ));
+    }
+
+    #[test]
+    fn deploy_discover_without_resolver_is_unavailable() {
+        let mgr = test_manager(); // no resolver
+        let mut spec = deploy_spec("disc");
+        spec.sorx_url = None;
+        spec.sor = Some("orders".into());
+        assert!(matches!(
+            mgr.deploy(spec).unwrap_err(),
+            DeployError::DiscoveryUnavailable
+        ));
+    }
+
+    #[test]
+    fn deploy_discover_with_resolver_ok() {
+        let mgr =
+            test_manager().with_resolver(Some(Arc::new(StubResolver(Some("http://sorx".into())))));
+        let mut spec = deploy_spec("disc2");
+        spec.sorx_url = None;
+        spec.sor = Some("orders".into());
+        let summary = mgr.deploy(spec).expect("discover deploy ok");
+        assert_eq!(summary.active_version, 1);
     }
 }

@@ -40,7 +40,10 @@ struct DeployBody {
     team: Option<String>,
     #[serde(default)]
     locale: Option<String>,
-    sorx_url: String,
+    #[serde(default)]
+    sorx_url: Option<String>,
+    #[serde(default)]
+    sor: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -73,6 +76,13 @@ fn deploy_error_reply(err: DeployError) -> HttpReply {
         ),
         DeployError::Persist(m) => HttpReply::error(500, "OPERAX_INTERNAL", m),
         DeployError::Internal(m) => HttpReply::error(500, "OPERAX_INTERNAL", m),
+        DeployError::BadRequest(m) => HttpReply::error(400, "OPERAX_BAD_REQUEST", m),
+        DeployError::DiscoveryUnavailable => HttpReply::error(
+            422,
+            "OPERAX_DISCOVERY_UNAVAILABLE",
+            "discovery not available (daemon built without events / no resolver)",
+        ),
+        DeployError::Unresolved(m) => HttpReply::error(503, "OPERAX_SORX_UNRESOLVED", m),
     }
 }
 
@@ -110,6 +120,7 @@ pub fn handle_deployment_request(
                     team: b.team,
                     locale: b.locale,
                     sorx_url: b.sorx_url,
+                    sor: b.sor,
                 };
                 return match mgr.deploy(spec) {
                     Ok(summary) => HttpReply::new(201, json!(summary)),
@@ -293,6 +304,7 @@ fn status_text(status: u16) -> &'static str {
         405 => "Method Not Allowed",
         409 => "Conflict",
         422 => "Unprocessable Entity",
+        503 => "Service Unavailable",
         _ => "Internal Server Error",
     }
 }
@@ -308,9 +320,25 @@ fn cors_headers() -> &'static str {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::deployment::SorxClientBuilder;
+    use crate::deployment::{SorxClientBuilder, SorxResolver};
     use crate::deployment_store::OperaxDeploymentStore;
     use std::sync::Arc;
+
+    // Tiny resolver stubs for exercising the `sor`-only deploy path and the
+    // 503 `Unresolved` mapping without a real SoRX discovery backend.
+    struct SResolver;
+    impl SorxResolver for SResolver {
+        fn resolve(&self, _tenant: &str, _sor: &str) -> Option<String> {
+            Some("http://localhost:8088".to_string())
+        }
+    }
+
+    struct SResolverNone;
+    impl SorxResolver for SResolverNone {
+        fn resolve(&self, _tenant: &str, _sor: &str) -> Option<String> {
+            None
+        }
+    }
 
     // Reuse the StubClient pattern from `deployment::tests`; a local copy keeps
     // this module self-contained. deploy/get/list/delete never call SoRX, and
@@ -417,6 +445,50 @@ mod tests {
         let r = handle_deployment_request("GET", "/v1/operax/deployments/d1", b"", &m);
         assert_eq!(r.status, 404);
         assert_eq!(r.body["error"]["code"], "OPERAX_DEPLOYMENT_NOT_FOUND");
+    }
+
+    // `sor`-only deploy body: valid `gtpack_path` (real, so the pack actually
+    // loads and deploy can reach 201) but discovery via `sor` instead of a
+    // static `sorx_url`. Mirrors `deploy_body()` above minus `sorx_url`.
+    fn deploy_body_sor_only(id: &str) -> Vec<u8> {
+        let handoff = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../../examples/tenancy/handoff");
+        serde_json::to_vec(&serde_json::json!({
+            "id": id,
+            "gtpack_path": handoff,
+            "tenant": "demo",
+            "sor": "orders"
+        }))
+        .unwrap()
+    }
+
+    #[test]
+    fn deploy_accepts_sor_only() {
+        let m = mgr().with_resolver(Some(Arc::new(SResolver)));
+        let r = handle_deployment_request(
+            "POST",
+            "/v1/operax/deployments",
+            &deploy_body_sor_only("d-sor"),
+            &m,
+        );
+        assert_eq!(r.status, 201);
+    }
+
+    #[test]
+    fn run_unresolved_returns_503() {
+        let m = mgr().with_resolver(Some(Arc::new(SResolverNone)));
+        let r = handle_deployment_request(
+            "POST",
+            "/v1/operax/deployments",
+            &deploy_body_sor_only("d-un"),
+            &m,
+        );
+        assert_eq!(r.status, 201);
+
+        let run = serde_json::to_vec(&serde_json::json!({ "input": [], "dry_run": true })).unwrap();
+        let r = handle_deployment_request("POST", "/v1/operax/deployments/d-un/run", &run, &m);
+        assert_eq!(r.status, 503);
+        assert_eq!(r.body["error"]["code"], "OPERAX_SORX_UNRESOLVED");
     }
 
     #[test]

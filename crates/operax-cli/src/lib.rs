@@ -255,11 +255,37 @@ fn run_serve(args: ServeArgs) -> Result<()> {
             tok.map(str::to_string),
         )) as Arc<dyn operax_sorx_http::SorxClient + Send + Sync>
     });
-    let manager = Arc::new(operax_manager::deployment::DeploymentManager::load(
+    let manager = operax_manager::deployment::DeploymentManager::load(
         operax_manager::deployment_store::OperaxDeploymentStore::new(registry_path),
         token,
         builder,
-    ));
+    );
+    #[cfg(feature = "events")]
+    let manager = {
+        use std::sync::RwLock;
+        if let Ok(nats_url) = std::env::var("OPERAX_PRESENCE_NATS_URL") {
+            let directory = Arc::new(RwLock::new(crate::presence::Directory::new()));
+            let dir_for_sub = directory.clone();
+            std::thread::spawn(move || {
+                let cfg = crate::presence::PresenceSubscriberConfig {
+                    nats_url,
+                    tenant: None,
+                };
+                if let Err(e) = crate::presence::run_presence_subscriber(cfg, dir_for_sub) {
+                    eprintln!("[operax serve] presence subscriber ended: {e}");
+                }
+            });
+            manager.with_resolver(Some(Arc::new(crate::presence::PresenceResolver {
+                directory,
+            })))
+        } else {
+            eprintln!(
+                "[operax serve] OPERAX_PRESENCE_NATS_URL unset; discovery disabled (sor deploys will 422)"
+            );
+            manager
+        }
+    };
+    let manager = Arc::new(manager);
     eprintln!("[operax serve] listening on {}", args.bind);
     operax_manager::serve::start_deployment_server(manager, &args.bind, args.secret)
 }
@@ -325,7 +351,8 @@ fn run_presence_subscribe(args: PresenceSubscribeArgs) -> Result<()> {
         nats_url,
         tenant: args.tenant,
     };
-    presence::run_presence_subscriber(config)
+    let directory = std::sync::Arc::new(std::sync::RwLock::new(presence::Directory::new()));
+    presence::run_presence_subscriber(config, directory)
         .map_err(|error| OperaxError::new("presence_subscribe_failed", error.to_string()))
 }
 

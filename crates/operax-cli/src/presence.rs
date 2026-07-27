@@ -58,6 +58,15 @@ pub fn apply_presence(dir: &mut Directory, presence: SorxPresence, now: u64) {
     );
 }
 
+/// Resolve the freshest reachable SoRX `base_url` for a (tenant, sor) pair.
+/// Pure: no I/O.
+pub fn resolve_endpoint(dir: &Directory, tenant: &str, sor: &str) -> Option<String> {
+    dir.values()
+        .filter(|e| e.presence.reachable && e.presence.tenant == tenant && e.presence.sor == sor)
+        .max_by_key(|e| e.last_seen)
+        .map(|e| e.presence.base_url.clone())
+}
+
 /// Removes entries whose age (`now - last_seen`) exceeds `ttl`. Pure: no I/O.
 ///
 /// Only meaningful once the producer sends heartbeats; today's boot-only
@@ -79,6 +88,18 @@ fn decode_presence(payload: &[u8]) -> Result<SorxPresence, serde_json::Error> {
 pub struct PresenceSubscriberConfig {
     pub nats_url: String,
     pub tenant: Option<String>,
+}
+
+/// Resolves SoRX endpoints from the live presence directory.
+pub struct PresenceResolver {
+    pub directory: std::sync::Arc<std::sync::RwLock<Directory>>,
+}
+
+impl operax_manager::deployment::SorxResolver for PresenceResolver {
+    fn resolve(&self, tenant: &str, sor: &str) -> Option<String> {
+        let dir = self.directory.read().ok()?;
+        resolve_endpoint(&dir, tenant, sor)
+    }
 }
 
 /// Current tick (Unix seconds) used to timestamp directory entries. Falls
@@ -117,11 +138,18 @@ fn log_directory(dir: &Directory) {
 /// should run this on a dedicated thread — mirrors
 /// `business_events::run_subscriber`.
 ///
+/// Writes discovered presence into `directory`, a shared, lock-guarded
+/// directory so a resolver on another thread can read the live state (see
+/// `PresenceResolver`, Task 8) instead of only seeing it logged.
+///
 /// Not exercised by this task's unit tests (no live NATS broker available
 /// here); a live-NATS integration test is deferred to a follow-up task.
 /// Wired to the CLI via the `operax presence subscribe` subcommand
 /// (`lib.rs::run_presence_subscribe`).
-pub fn run_presence_subscriber(config: PresenceSubscriberConfig) -> anyhow::Result<()> {
+pub fn run_presence_subscriber(
+    config: PresenceSubscriberConfig,
+    directory: std::sync::Arc<std::sync::RwLock<Directory>>,
+) -> anyhow::Result<()> {
     let rt = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()?;
@@ -133,7 +161,6 @@ pub fn run_presence_subscriber(config: PresenceSubscriberConfig) -> anyhow::Resu
         };
         let mut subscriber = client.subscribe(subject.clone()).await?;
         eprintln!("subscribed to {subject}");
-        let mut directory: Directory = HashMap::new();
         while let Some(msg) = subscriber.next().await {
             let presence = match decode_presence(&msg.payload) {
                 Ok(presence) => presence,
@@ -143,9 +170,12 @@ pub fn run_presence_subscriber(config: PresenceSubscriberConfig) -> anyhow::Resu
                 }
             };
             let now = now_ticks();
-            apply_presence(&mut directory, presence, now);
-            evict_stale(&mut directory, now, PRESENCE_TTL_SECS);
-            log_directory(&directory);
+            let mut guard = directory
+                .write()
+                .map_err(|_| anyhow::anyhow!("presence directory poisoned"))?;
+            apply_presence(&mut guard, presence, now);
+            evict_stale(&mut guard, now, PRESENCE_TTL_SECS);
+            log_directory(&guard);
         }
         Ok::<(), anyhow::Error>(())
     })
@@ -202,5 +232,106 @@ mod tests {
     #[test]
     fn malformed_json_is_skipped() {
         assert!(decode_presence(b"not json").is_err());
+    }
+
+    #[test]
+    fn resolve_picks_freshest_reachable() {
+        fn pres(
+            instance: &str,
+            tenant: &str,
+            sor: &str,
+            url: &str,
+            reachable: bool,
+        ) -> SorxPresence {
+            SorxPresence {
+                schema: "greentic.sorx.presence.v1".into(),
+                instance_id: instance.into(),
+                tenant: tenant.into(),
+                environment: "prod".into(),
+                sor: sor.into(),
+                pack_version: "1.0.0".into(),
+                base_url: url.into(),
+                reachable,
+                offers: serde_json::Value::Null,
+                ts: "t".into(),
+            }
+        }
+        let mut dir = Directory::new();
+        apply_presence(&mut dir, pres("i1", "t1", "orders", "http://old", true), 10);
+        apply_presence(&mut dir, pres("i2", "t1", "orders", "http://new", true), 20);
+        apply_presence(
+            &mut dir,
+            pres("i3", "t1", "orders", "http://down", false),
+            30,
+        );
+        apply_presence(
+            &mut dir,
+            pres("i4", "t1", "billing", "http://other", true),
+            40,
+        );
+        assert_eq!(
+            resolve_endpoint(&dir, "t1", "orders").as_deref(),
+            Some("http://new")
+        );
+        assert_eq!(resolve_endpoint(&dir, "t1", "unknown"), None);
+        assert_eq!(resolve_endpoint(&dir, "t2", "orders"), None);
+    }
+
+    #[test]
+    fn apply_into_shared_directory() {
+        use std::sync::{Arc, RwLock};
+
+        let dir = Arc::new(RwLock::new(Directory::new()));
+        {
+            // Simulate what the subscriber loop does per message: apply and
+            // evict under a single write-lock acquisition.
+            let mut guard = dir.write().unwrap();
+            apply_presence(
+                &mut guard,
+                presence_with_url("i1", "t1", "orders", "http://new"),
+                10,
+            );
+            evict_stale(&mut guard, 10, PRESENCE_TTL_SECS);
+        }
+        let guard = dir.read().unwrap();
+        assert_eq!(
+            resolve_endpoint(&guard, "t1", "orders").as_deref(),
+            Some("http://new")
+        );
+    }
+
+    #[test]
+    fn presence_resolver_delegates() {
+        use std::sync::{Arc, RwLock};
+
+        let dir = Arc::new(RwLock::new(Directory::new()));
+        {
+            let mut guard = dir.write().unwrap();
+            apply_presence(
+                &mut guard,
+                presence_with_url("i1", "t1", "orders", "http://new"),
+                10,
+            );
+        }
+        let resolver = PresenceResolver { directory: dir };
+        assert_eq!(
+            operax_manager::deployment::SorxResolver::resolve(&resolver, "t1", "orders").as_deref(),
+            Some("http://new")
+        );
+    }
+
+    fn presence_with_url(instance: &str, tenant: &str, sor: &str, url: &str) -> SorxPresence {
+        SorxPresence {
+            schema: "greentic.sorx.presence.v1".into(),
+            instance_id: instance.into(),
+            tenant: tenant.into(),
+            environment: "prod".into(),
+            sor: sor.into(),
+            pack_version: "1.0.0".into(),
+            base_url: url.into(),
+            reachable: true,
+            offers: serde_json::Value::Null,
+            ts: "t".into(),
+        }
     }
 }
