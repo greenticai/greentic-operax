@@ -12,6 +12,7 @@ use std::sync::{Arc, Mutex};
 
 pub mod deployment;
 pub mod deployment_store;
+pub mod serve;
 
 #[derive(Debug, Clone)]
 pub struct ManagerOptions {
