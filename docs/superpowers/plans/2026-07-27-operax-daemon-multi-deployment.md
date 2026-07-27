@@ -13,7 +13,7 @@
 - Base branch: `main`. `greentic-types = 1.1` (registry pin), sibling `greentic-pack` path dep, **no git-deps** — this repo is NOT on the release-train. Do not add git/path deps or bump `greentic-types`.
 - `#![forbid(unsafe_code)]` stays. **No `unwrap()`/`panic!()`/`expect()` on daemon runtime paths** — every fallible step returns `Result` mapped to an HTTP status; a poisoned lock maps to `500`, never a panic across the accept loop. (`unwrap`/`expect` are allowed only inside `#[cfg(test)]`.)
 - English only in source, tests, comments, commit messages. Conventional Commits (`feat:`, `test:`, `refactor:`). No AI-authorship trailers.
-- All new crate-level code lives in `operax-manager` except the CLI subcommand wiring in `operax-cli`. `operax-manager` must NOT gain a dependency on `operax-sorx-http` (the SoRX client is injected via a builder closure).
+- All new crate-level code lives in `operax-manager` except the CLI subcommand wiring in `operax-cli`. `operax-manager` already depends on `operax-sorx-http`; the SoRX client is still injected via a builder closure so unit tests can pass a stub without constructing a real HTTP client. Error handling uses `operax_core::{Result, OperaxError}` (this crate's convention — NOT anyhow).
 - **Validation is via CI build-oracle:** the dev sandbox has no network, so `cargo` cannot run locally. Each task's "run test" step is the canonical command; actual green/red is confirmed by pushing the branch and reading `greentic-operax` CI. Batch several tasks per CI push (see Execution Notes at the end).
 - Deployment identity is a **client-provided stable `id`**. `sorx_url` is **static per deployment** (dynamic discovery is a later slice). A single process-wide SoRX token is sourced once from `--sorx-token-env` (default `SORX_TOKEN`).
 
@@ -163,7 +163,8 @@ git commit -m "feat(operax): deployment registry data types"
 
 **Interfaces:**
 - Consumes: `DeploymentRegistry` (Task 1).
-- Produces: `OperaxDeploymentStore { path: PathBuf }` with `new(path) -> Self`, `load(&self) -> anyhow::Result<DeploymentRegistry>` (empty registry if the file is absent), `save(&self, &DeploymentRegistry) -> anyhow::Result<()>` (write-tmp-then-rename).
+- Produces: `OperaxDeploymentStore { path: PathBuf }` with `new(path) -> Self`, `load(&self) -> operax_core::Result<DeploymentRegistry>` (empty registry if the file is absent), `save(&self, &DeploymentRegistry) -> operax_core::Result<()>` (write-tmp-then-rename).
+- Error type: this crate uses `operax_core::{Result, OperaxError}` (NOT anyhow — anyhow is not a dependency). `OperaxError::new(code, message)`; `From<std::io::Error>` and `From<serde_json::Error>` are implemented, so `?` works directly on `std::fs`/`serde_json` calls.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -231,7 +232,7 @@ Prepend to `crates/operax-manager/src/deployment_store.rs`:
 //! greentic-sorx's `LocalDeploymentRegistryStore`.
 
 use crate::deployment::DeploymentRegistry;
-use anyhow::Context;
+use operax_core::{OperaxError, Result};
 use std::path::{Path, PathBuf};
 
 pub struct OperaxDeploymentStore {
@@ -248,34 +249,44 @@ impl OperaxDeploymentStore {
     }
 
     /// Load the registry; an absent file yields an empty registry.
-    pub fn load(&self) -> anyhow::Result<DeploymentRegistry> {
+    pub fn load(&self) -> Result<DeploymentRegistry> {
         match std::fs::read(&self.path) {
-            Ok(bytes) => serde_json::from_slice(&bytes)
-                .with_context(|| format!("parsing deployment registry at {}", self.path.display())),
+            // `?` converts serde_json::Error via operax_core's From impl.
+            Ok(bytes) => Ok(serde_json::from_slice(&bytes)?),
             Err(err) if err.kind() == std::io::ErrorKind::NotFound => {
                 Ok(DeploymentRegistry::default())
             }
-            Err(err) => {
-                Err(anyhow::Error::from(err)
-                    .context(format!("reading deployment registry at {}", self.path.display())))
-            }
+            Err(err) => Err(OperaxError::new(
+                "registry_read_failed",
+                format!("reading deployment registry at {}: {err}", self.path.display()),
+            )),
         }
     }
 
     /// Persist the registry via write-tmp-then-rename for atomicity.
-    pub fn save(&self, registry: &DeploymentRegistry) -> anyhow::Result<()> {
+    pub fn save(&self, registry: &DeploymentRegistry) -> Result<()> {
         if let Some(parent) = self.path.parent() {
             if !parent.as_os_str().is_empty() {
-                std::fs::create_dir_all(parent)
-                    .with_context(|| format!("creating registry dir {}", parent.display()))?;
+                std::fs::create_dir_all(parent).map_err(|e| {
+                    OperaxError::new(
+                        "registry_dir_failed",
+                        format!("creating registry dir {}: {e}", parent.display()),
+                    )
+                })?;
             }
         }
-        let bytes = serde_json::to_vec_pretty(registry).context("serializing registry")?;
+        // `?` converts serde_json::Error via operax_core's From impl.
+        let bytes = serde_json::to_vec_pretty(registry)?;
         let tmp = self.path.with_extension("json.tmp");
-        std::fs::write(&tmp, &bytes)
-            .with_context(|| format!("writing temp registry {}", tmp.display()))?;
-        std::fs::rename(&tmp, &self.path)
-            .with_context(|| format!("renaming temp registry into {}", self.path.display()))?;
+        std::fs::write(&tmp, &bytes).map_err(|e| {
+            OperaxError::new("registry_write_failed", format!("writing {}: {e}", tmp.display()))
+        })?;
+        std::fs::rename(&tmp, &self.path).map_err(|e| {
+            OperaxError::new(
+                "registry_rename_failed",
+                format!("renaming into {}: {e}", self.path.display()),
+            )
+        })?;
         Ok(())
     }
 }
@@ -301,9 +312,9 @@ git commit -m "feat(operax): atomic JSON store for deployment registry"
 - Modify: `crates/operax-manager/src/deployment.rs` (add `DeploymentSlot`, `DeploymentManager`, deploy/get/list)
 
 **Interfaces:**
-- Consumes: `OperaxDeploymentStore` (Task 2); `operax_pack_loader::load_operational_pack`; `ManagerRuntime::new`; `operax_core::SorxClient` trait.
+- Consumes: `OperaxDeploymentStore` (Task 2); `operax_pack_loader::load_operational_pack`; `ManagerRuntime::new` (infallible — returns `Self`, NOT `Result`); the `SorxClient` trait from **`operax_sorx_http`** (verified: `use operax_sorx_http::SorxClient;`, not `operax_core`). `operax-manager` already depends on `operax-core`, `operax-pack-loader`, `operax-runtime`, and `operax-sorx-http` — no Cargo.toml changes needed.
 - Produces:
-  - `type SorxClientBuilder = Box<dyn Fn(&str, Option<&str>) -> std::sync::Arc<dyn operax_core::SorxClient + Send + Sync> + Send + Sync>`
+  - `type SorxClientBuilder = Box<dyn Fn(&str, Option<&str>) -> std::sync::Arc<dyn operax_sorx_http::SorxClient + Send + Sync> + Send + Sync>`
   - `DeploymentManager::new(store: OperaxDeploymentStore, token: Option<String>, client_builder: SorxClientBuilder) -> Self`
   - `DeploymentManager::deploy(&self, spec: DeploySpec) -> Result<DeploymentSummary, DeployError>`
   - `DeploymentManager::get(&self, id: &str) -> Option<DeploymentDetail>`; `list(&self) -> Vec<DeploymentSummary>`
@@ -312,7 +323,7 @@ git commit -m "feat(operax): atomic JSON store for deployment registry"
   - `DeploymentDetail { record: DeploymentRecord, status: DeploymentStatus }`
   - `enum DeployError { AlreadyExists, PackLoad(String), Persist(String) }`
 
-Note: verify the exact `SorxClient` trait path (`operax_core::SorxClient`) and `ManagerRuntime::new` signature `(pack, tenant, team, locale, audit_dir, client)` against the crate before Step 3; adjust imports if the module path differs.
+Note (verified against the crate): `SorxClient` is `operax_sorx_http::SorxClient`; `ManagerRuntime::new(pack, tenant, team, locale, audit_dir, client) -> Self` is **infallible** (no `Result`, no `?`). The stub client in tests must implement all seven trait methods — `health`, `routes`, `business_actions`, `dry_run_business_action`, `invoke_business_action`, `invoke_generated_route`, `invoke` — with `unimplemented!()` bodies (test-only; never called on the dry-run path). Read `crates/operax-sorx-http/src/lib.rs` for their exact signatures before writing the stub.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -324,7 +335,7 @@ use std::sync::Arc;
 // A no-op SorxClient stub; deploy/get/list never call SoRX (only run does, and
 // only in non-dry-run), so the stub body is unreachable here.
 struct StubClient;
-impl operax_core::SorxClient for StubClient {
+impl operax_sorx_http::SorxClient for StubClient {
     // Fill the trait's required methods with `unimplemented!()` bodies — this is
     // test-only code, so panics are acceptable. Match the real trait signature.
 }
@@ -339,7 +350,7 @@ fn test_manager() -> DeploymentManager {
     DeploymentManager::new(
         crate::deployment_store::OperaxDeploymentStore::new(path),
         None,
-        Box::new(|_url, _tok| Arc::new(StubClient) as Arc<dyn operax_core::SorxClient + Send + Sync>),
+        Box::new(|_url, _tok| Arc::new(StubClient) as Arc<dyn operax_sorx_http::SorxClient + Send + Sync>),
     )
 }
 
@@ -402,7 +413,7 @@ Add to `deployment.rs` (below the types):
 ```rust
 use crate::deployment_store::OperaxDeploymentStore;
 use crate::ManagerRuntime;
-use operax_core::SorxClient;
+use operax_sorx_http::SorxClient;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::{Arc, RwLock};
@@ -484,6 +495,7 @@ impl DeploymentManager {
         let pack = operax_pack_loader::load_operational_pack(&record.active.gtpack_path)
             .map_err(|e| DeployError::PackLoad(e.to_string()))?;
         let client = (self.client_builder)(&record.sorx_url, self.token.as_deref());
+        // ManagerRuntime::new is infallible (returns Self).
         let runtime = ManagerRuntime::new(
             pack,
             record.tenant.clone(),
@@ -491,8 +503,7 @@ impl DeploymentManager {
             record.locale.clone(),
             None, // audit_dir: none for the daemon in slice 1
             client,
-        )
-        .map_err(|e| DeployError::Internal(e.to_string()))?;
+        );
         Ok(Arc::new(runtime))
     }
 
@@ -515,6 +526,7 @@ impl DeploymentManager {
             .map_err(|e| DeployError::PackLoad(e.to_string()))?;
         let digest = pack.pack_digest.clone();
         let client = (self.client_builder)(&spec.sorx_url, self.token.as_deref());
+        // ManagerRuntime::new is infallible (returns Self).
         let runtime = ManagerRuntime::new(
             pack,
             spec.tenant.clone(),
@@ -522,8 +534,7 @@ impl DeploymentManager {
             spec.locale.clone(),
             None,
             client,
-        )
-        .map_err(|e| DeployError::Internal(e.to_string()))?;
+        );
         let record = DeploymentRecord {
             id: spec.id.clone(),
             tenant: spec.tenant,
@@ -578,7 +589,7 @@ impl DeploymentManager {
 }
 ```
 
-If `operax-manager` does not already depend on `operax-pack-loader` and `operax-core`, add them to `crates/operax-manager/Cargo.toml` `[dependencies]` (path deps to the sibling crates, matching how other members reference them). It already depends on both transitively via `ManagerRuntime`, so a direct entry is usually already present — confirm before adding.
+No `Cargo.toml` change is needed: `operax-manager` already declares `operax-core`, `operax-pack-loader`, `operax-runtime`, and `operax-sorx-http` as workspace dependencies (verified).
 
 - [ ] **Step 4: Run test to verify it passes**
 
@@ -588,7 +599,7 @@ Expected: PASS (three tests).
 - [ ] **Step 5: Commit**
 
 ```bash
-git add crates/operax-manager/src/deployment.rs crates/operax-manager/Cargo.toml
+git add crates/operax-manager/src/deployment.rs
 git commit -m "feat(operax): DeploymentManager deploy/get/list"
 ```
 
@@ -684,6 +695,7 @@ Add to `impl DeploymentManager`:
 
         let slot = slots.get_mut(id).ok_or(DeployError::NotFound)?;
         let client = (self.client_builder)(&slot.record.sorx_url, self.token.as_deref());
+        // ManagerRuntime::new is infallible (returns Self).
         let runtime = ManagerRuntime::new(
             pack,
             slot.record.tenant.clone(),
@@ -691,8 +703,7 @@ Add to `impl DeploymentManager`:
             slot.record.locale.clone(),
             None,
             client,
-        )
-        .map_err(|e| DeployError::Internal(e.to_string()))?;
+        );
 
         let next_version = slot.record.active.version + 1;
         let new_active = DeploymentVersion {
@@ -796,7 +807,7 @@ fn load_rebuilds_ready_and_marks_failed() {
     let mgr = DeploymentManager::load(
         crate::deployment_store::OperaxDeploymentStore::new(path.clone()),
         None,
-        Box::new(|_u, _t| Arc::new(StubClient) as Arc<dyn operax_core::SorxClient + Send + Sync>),
+        Box::new(|_u, _t| Arc::new(StubClient) as Arc<dyn operax_sorx_http::SorxClient + Send + Sync>),
     );
     let good_detail = mgr.get("good").expect("good present");
     assert!(matches!(good_detail.status, DeploymentStatus::Ready));
@@ -868,8 +879,8 @@ git commit -m "feat(operax): rebuild deployment slots on boot, Failed on bad pac
 - Modify: `crates/operax-manager/src/deployment.rs`
 
 **Interfaces:**
-- Consumes: `ManagerRuntime::run_input` (verify exact signature against `operax-manager/src/lib.rs:169` — expected `(input_json: Value, dry_run: bool, locale_override: Option<String>) -> Result<RunReport>`; adapt the call if it differs).
-- Produces: `DeploymentManager::run(&self, id, input: serde_json::Value, dry_run: bool, locale: Option<String>) -> Result<RunReport, DeployError>`; add `DeployError::DeploymentFailed`. `RunReport` is `operax_runtime::RunReport` (re-export via `ManagerRuntime`).
+- Consumes: `ManagerRuntime::run_input`. VERIFIED signature: `fn run_input(&self, input: Value, dry_run: bool, return_card: bool) -> operax_core::Result<ManagerRunResult>` — and it is **private**. This task must first change it to `pub fn run_input(...)` (a one-line visibility change; behavior unchanged). There is NO locale-override parameter — locale is fixed at deployment construction, so `run` does not take one.
+- Produces: `DeploymentManager::run(&self, id: &str, input: serde_json::Value, dry_run: bool) -> Result<crate::ManagerRunResult, DeployError>`; add `DeployError::DeploymentFailed`. `ManagerRunResult` is already `pub` in `operax-manager` and derives `Serialize` (it wraps `report: RunReport`) — no re-export needed.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -882,15 +893,15 @@ fn run_dry_run_returns_report() {
         "../../operax-cli/examples/tenancy/banking/daily-transactions.json"
     ))
     .expect("fixture input");
-    let report = mgr.run("run1", input, true, None).expect("run ok");
+    let result = mgr.run("run1", input, true).expect("run ok");
     // The tenancy fixture yields three decisions (see customer_pilot_demo test).
-    assert_eq!(report.input_count, 3);
+    assert_eq!(result.report.input_count, 3);
 }
 
 #[test]
 fn run_unknown_id_is_not_found() {
     let mgr = test_manager();
-    let err = mgr.run("ghost", serde_json::json!([]), true, None).unwrap_err();
+    let err = mgr.run("ghost", serde_json::json!([]), true).unwrap_err();
     assert!(matches!(err, DeployError::NotFound));
 }
 ```
@@ -902,6 +913,8 @@ Expected: FAIL — `run` not defined.
 
 - [ ] **Step 3: Write minimal implementation**
 
+First make `ManagerRuntime::run_input` callable from `deployment.rs`: in `crates/operax-manager/src/lib.rs`, change `fn run_input(` to `pub fn run_input(` (visibility only — do not touch its body or signature).
+
 Add `DeploymentFailed` to `DeployError`, then add to `impl DeploymentManager`:
 
 ```rust
@@ -910,8 +923,7 @@ Add `DeploymentFailed` to `DeployError`, then add to `impl DeploymentManager`:
         id: &str,
         input: serde_json::Value,
         dry_run: bool,
-        locale: Option<String>,
-    ) -> Result<crate::RunReport, DeployError> {
+    ) -> Result<crate::ManagerRunResult, DeployError> {
         let slots = self.slots.read().map_err(|_| DeployError::Internal("lock poisoned".into()))?;
         let slot = slots.get(id).ok_or(DeployError::NotFound)?;
         let runtime = match (&slot.status, &slot.runtime) {
@@ -920,13 +932,14 @@ Add `DeploymentFailed` to `DeployError`, then add to `impl DeploymentManager`:
         };
         // Drop the read lock before running so other deployments proceed.
         drop(slots);
+        // return_card = false: the daemon returns the run report, not a manager card.
         runtime
-            .run_input(input, dry_run, locale)
+            .run_input(input, dry_run, false)
             .map_err(|e| DeployError::Internal(e.to_string()))
     }
 ```
 
-Verify `crate::RunReport` is exported from `operax-manager` (re-export `pub use operax_runtime::RunReport;` in `lib.rs` if not already). Confirm `run_input`'s real parameter order/return and adjust.
+`ManagerRunResult` is already `pub` in `operax-manager` (`crate::ManagerRunResult`); it derives `Serialize`, so Task 7 can serialize it directly.
 
 - [ ] **Step 4: Run test to verify it passes**
 
@@ -966,14 +979,14 @@ mod tests {
 
     // Reuse the StubClient pattern; a local copy keeps this module self-contained.
     struct StubClient;
-    impl operax_core::SorxClient for StubClient { /* unimplemented!() bodies */ }
+    impl operax_sorx_http::SorxClient for StubClient { /* unimplemented!() bodies */ }
 
     fn mgr() -> DeploymentManager {
         let mut p = std::env::temp_dir();
         p.push(format!("operax-serve-{}.json", std::process::id()));
         let _ = std::fs::remove_file(&p);
         let builder: SorxClientBuilder =
-            Box::new(|_u, _t| Arc::new(StubClient) as Arc<dyn operax_core::SorxClient + Send + Sync>);
+            Box::new(|_u, _t| Arc::new(StubClient) as Arc<dyn operax_sorx_http::SorxClient + Send + Sync>);
         DeploymentManager::new(OperaxDeploymentStore::new(p), None, builder)
     }
 
@@ -1083,8 +1096,6 @@ struct RunBody {
     input: Value,
     #[serde(default)]
     dry_run: bool,
-    #[serde(default)]
-    locale: Option<String>,
 }
 
 fn deploy_error_reply(err: DeployError) -> HttpReply {
@@ -1158,8 +1169,8 @@ pub fn handle_deployment_request(
                 Ok(b) => b,
                 Err(r) => return r,
             };
-            return match mgr.run(id, b.input, b.dry_run, b.locale) {
-                Ok(report) => HttpReply::new(200, json!(report)),
+            return match mgr.run(id, b.input, b.dry_run) {
+                Ok(result) => HttpReply::new(200, json!(result)),
                 Err(e) => deploy_error_reply(e),
             };
         }
@@ -1195,7 +1206,7 @@ pub fn handle_deployment_request(
 }
 ```
 
-`RunReport`, `DeploymentSummary`, and `DeploymentDetail` must be `Serialize` (Tasks 1/3/6). `RunReport` already derives `Serialize` in `operax-runtime`; confirm.
+`ManagerRunResult`, `DeploymentSummary`, and `DeploymentDetail` must be `Serialize` (Tasks 3/6). `ManagerRunResult` already derives `Serialize` in `operax-manager`; `DeploymentSummary`/`DeploymentDetail` were given `#[derive(Serialize)]` in Task 3.
 
 - [ ] **Step 4: Run test to verify it passes**
 
@@ -1217,7 +1228,7 @@ git commit -m "feat(operax): pure HTTP dispatch for deployment daemon"
 - Modify: `crates/operax-manager/src/serve.rs`
 
 **Interfaces:**
-- Produces: `fn is_authorized(headers: &HttpHeaders, secret: Option<&str>) -> bool`; `fn start_deployment_server(mgr: Arc<DeploymentManager>, bind: &str, secret: Option<String>) -> anyhow::Result<()>`.
+- Produces: `fn is_authorized(headers: &HttpHeaders, secret: Option<&str>) -> bool`; `fn start_deployment_server(mgr: Arc<DeploymentManager>, bind: &str, secret: Option<String>) -> operax_core::Result<()>` (this crate's Result; mirror `start_manager_server`'s signature, which returns `operax_core::Result<()>` and maps bind failure via `OperaxError::new("manager_bind_failed", ...)`).
 - Reuse the request-parsing / response-writing helpers from `start_manager_server` in `crates/operax-manager/src/lib.rs`. If they are private module functions, either call them (same crate) or factor the shared bits into `http_util.rs` and use them from both. Do NOT modify `start_manager_server`'s behavior.
 
 - [ ] **Step 1: Write the failing test** (auth unit — the TCP loop is covered by Task 10's e2e)
@@ -1351,13 +1362,13 @@ fn default_registry_path() -> std::path::PathBuf {
     base.join(".greentic/operax/deployments.json")
 }
 
-pub fn run_serve(args: ServeArgs) -> anyhow::Result<()> {
+pub fn run_serve(args: ServeArgs) -> Result<()> {
     use std::sync::Arc;
     let registry_path = args.registry.unwrap_or_else(default_registry_path);
     let token = std::env::var(&args.sorx_token_env).ok();
     let builder: operax_manager::deployment::SorxClientBuilder = Box::new(|url, tok| {
         Arc::new(operax_sorx_http::HttpSorxClient::new(url.to_string(), tok.map(str::to_string)))
-            as Arc<dyn operax_core::SorxClient + Send + Sync>
+            as Arc<dyn operax_sorx_http::SorxClient + Send + Sync>
     });
     let manager = Arc::new(operax_manager::deployment::DeploymentManager::load(
         operax_manager::deployment_store::OperaxDeploymentStore::new(registry_path),
@@ -1471,7 +1482,7 @@ Expected: FAIL — compile error until the construction block is filled and the 
 
 - [ ] **Step 3: Complete the test wiring**
 
-Fill the construction block: build `OperaxDeploymentStore` on a temp path, `DeploymentManager::new(store, None, stub_builder)`, wrap in `Arc`, `std::thread::spawn(move || { let _ = start_deployment_server(mgr, addr, None); })`. Define the inline `StubClient` matching `operax_core::SorxClient`.
+Fill the construction block: build `OperaxDeploymentStore` on a temp path, `DeploymentManager::new(store, None, stub_builder)`, wrap in `Arc`, `std::thread::spawn(move || { let _ = start_deployment_server(mgr, addr, None); })`. Define the inline `StubClient` matching `operax_sorx_http::SorxClient`.
 
 - [ ] **Step 4: Run test to verify it passes**
 
@@ -1525,7 +1536,9 @@ git commit -m "docs(operax): document operax serve multi-deployment daemon"
 - Non-goals (discovery/event-routing/rollback/upload/store-fetch/per-tenant-auth) → not implemented; interface seams noted in the spec. ✓
 - Testing incl. e2e mirroring customer_pilot_demo → Task 10. ✓
 
-**Placeholder scan:** `DeploymentSlot.runtime` is `Option<Arc<ManagerRuntime>>` from Task 3 onward; `deploy`/`upgrade` set `Some(..)`, `load` sets `None` for `Failed` slots, and Task 6's `run` matches `(Ready, Some(rt))`. No fabricated placeholders. Two steps intentionally defer detail to reading the real crate (the `SorxClient` trait body and `ManagerRuntime::new`/`run_input` signatures) — flagged as explicit verify-before-code notes, since those signatures were not read line-by-line during planning. Task 10's e2e leaves the manager-construction block to be filled from the same stub pattern as the unit tests (its wiring is fully described). All other steps carry real code.
+**Placeholder scan:** `DeploymentSlot.runtime` is `Option<Arc<ManagerRuntime>>` from Task 3 onward; `deploy`/`upgrade` set `Some(..)`, `load` sets `None` for `Failed` slots, and Task 6's `run` matches `(Ready, Some(rt))`. No fabricated placeholders. The only deferred detail is the `SorxClient` trait method bodies in test stubs — the seven method names are in Task 3's note; the implementer copies their signatures from `crates/operax-sorx-http/src/lib.rs` and fills `unimplemented!()` bodies (never called on dry-run). Task 10's e2e leaves the manager-construction block to be filled from the same stub pattern as the unit tests. All other steps carry real code.
+
+**Signatures verified against the crate (post-planning correction):** `ManagerRuntime::new(...) -> Self` is infallible; `run_input(&self, Value, dry_run: bool, return_card: bool) -> operax_core::Result<ManagerRunResult>` (made `pub` in Task 6); `SorxClient` lives in `operax_sorx_http`; error type is `operax_core::{Result, OperaxError}` (no anyhow); `operax-manager` already deps `operax-{core,pack-loader,runtime,sorx-http}`. Tasks 2–9 updated to match.
 
 **Type consistency:** `DeployError` variants (`AlreadyExists`/`NotFound`/`PackLoad`/`DeploymentFailed`/`Persist`/`Internal`) are introduced across Tasks 3–6 and consumed in Task 7's `deploy_error_reply` — all six mapped. `DeploymentSummary`/`DeploymentDetail`/`RunReport` are `Serialize` and serialized in Task 7. `SorxClientBuilder` signature is identical in Tasks 3, 7, 9. `run_input` / `ManagerRuntime::new` / `SorxClient` trait path carry explicit "verify against the crate" notes because their exact signatures were not read line-by-line during planning.
 
