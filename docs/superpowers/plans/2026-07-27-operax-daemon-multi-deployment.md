@@ -266,15 +266,16 @@ impl OperaxDeploymentStore {
 
     /// Persist the registry via write-tmp-then-rename for atomicity.
     pub fn save(&self, registry: &DeploymentRegistry) -> Result<()> {
-        if let Some(parent) = self.path.parent() {
-            if !parent.as_os_str().is_empty() {
-                std::fs::create_dir_all(parent).map_err(|e| {
-                    OperaxError::new(
-                        "registry_dir_failed",
-                        format!("creating registry dir {}: {e}", parent.display()),
-                    )
-                })?;
-            }
+        // Collapsed let-chain (clippy::collapsible_if; let-chains are stable in edition 2024).
+        if let Some(parent) = self.path.parent()
+            && !parent.as_os_str().is_empty()
+        {
+            std::fs::create_dir_all(parent).map_err(|e| {
+                OperaxError::new(
+                    "registry_dir_failed",
+                    format!("creating registry dir {}: {e}", parent.display()),
+                )
+            })?;
         }
         // `?` converts serde_json::Error via operax_core's From impl.
         let bytes = serde_json::to_vec_pretty(registry)?;
@@ -1270,10 +1271,11 @@ pub fn is_authorized(headers: &HttpHeaders, secret: Option<&str>) -> bool {
     let Some(secret) = secret else {
         return true; // no secret configured → open (local-dev)
     };
-    if let Some(bearer) = headers.get("authorization") {
-        if bearer.strip_prefix("Bearer ").map(str::trim) == Some(secret) {
-            return true;
-        }
+    // Collapsed let-chain (clippy::collapsible_if).
+    if let Some(bearer) = headers.get("authorization")
+        && bearer.strip_prefix("Bearer ").map(str::trim) == Some(secret)
+    {
+        return true;
     }
     headers.get("x-greentic-sorx-secret").map(String::as_str) == Some(secret)
 }

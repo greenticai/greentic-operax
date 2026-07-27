@@ -38,15 +38,15 @@ impl OperaxDeploymentStore {
 
     /// Persist the registry via write-tmp-then-rename for atomicity.
     pub fn save(&self, registry: &DeploymentRegistry) -> Result<()> {
-        if let Some(parent) = self.path.parent() {
-            if !parent.as_os_str().is_empty() {
-                std::fs::create_dir_all(parent).map_err(|e| {
-                    OperaxError::new(
-                        "registry_dir_failed",
-                        format!("creating registry dir {}: {e}", parent.display()),
-                    )
-                })?;
-            }
+        if let Some(parent) = self.path.parent()
+            && !parent.as_os_str().is_empty()
+        {
+            std::fs::create_dir_all(parent).map_err(|e| {
+                OperaxError::new(
+                    "registry_dir_failed",
+                    format!("creating registry dir {}: {e}", parent.display()),
+                )
+            })?;
         }
         // `?` converts serde_json::Error via operax_core's From impl.
         let bytes = serde_json::to_vec_pretty(registry)?;
