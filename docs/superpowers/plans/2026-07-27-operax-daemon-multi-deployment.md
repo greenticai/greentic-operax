@@ -356,10 +356,15 @@ fn test_manager() -> DeploymentManager {
     )
 }
 
+// The tenancy fixtures live at the REPO ROOT `examples/` (not under any crate).
+// From operax-manager's manifest dir (`crates/operax-manager`), that is `../../examples`.
+fn repo_examples() -> std::path::PathBuf {
+    std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../examples")
+}
+
 fn fixture_gtpack() -> std::path::PathBuf {
-    // The tenancy handoff dir the existing CLI tests use.
-    std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("../operax-cli/examples/tenancy/handoff")
+    // The tenancy handoff dir the existing customer_pilot_demo test uses.
+    repo_examples().join("tenancy/handoff")
 }
 
 fn deploy_spec(id: &str) -> DeploySpec {
@@ -891,10 +896,11 @@ git commit -m "feat(operax): rebuild deployment slots on boot, Failed on bad pac
 fn run_dry_run_returns_report() {
     let mgr = test_manager();
     mgr.deploy(deploy_spec("run1")).expect("deploy");
-    let input: serde_json::Value = serde_json::from_str(include_str!(
-        "../../operax-cli/examples/tenancy/banking/daily-transactions.json"
-    ))
-    .expect("fixture input");
+    // Read the real tenancy input at runtime (repo_examples() defined in Task 3).
+    let input_path = repo_examples().join("tenancy/banking/daily-transactions.json");
+    let input: serde_json::Value =
+        serde_json::from_str(&std::fs::read_to_string(input_path).expect("read fixture input"))
+            .expect("parse fixture input");
     let result = mgr.run("run1", input, true).expect("run ok");
     // The tenancy fixture yields three decisions (see customer_pilot_demo test).
     assert_eq!(result.report.input_count, 3);
@@ -1453,14 +1459,18 @@ fn full_lifecycle_over_http() {
     // give it a moment to bind:
     std::thread::sleep(std::time::Duration::from_millis(200));
 
-    let handoff = concat!(env!("CARGO_MANIFEST_DIR"), "/../operax-cli/examples/tenancy/handoff");
+    // Fixtures live at the repo root `examples/`; from this test's manifest dir
+    // (`crates/operax-manager`) that is `../../examples`.
+    let examples = concat!(env!("CARGO_MANIFEST_DIR"), "/../../examples");
+    let handoff = format!("{examples}/tenancy/handoff");
     let deploy = format!(
         r#"{{"id":"e2e","gtpack_path":"{handoff}","tenant":"demo","team":"property-ops","sorx_url":"http://localhost:8088"}}"#
     );
     let (s, _) = request(addr, "POST", "/v1/operax/deployments", &deploy);
     assert_eq!(s, 201);
 
-    let input = include_str!("../../operax-cli/examples/tenancy/banking/daily-transactions.json");
+    let input = std::fs::read_to_string(format!("{examples}/tenancy/banking/daily-transactions.json"))
+        .expect("read tenancy input fixture");
     let run_body = format!(r#"{{"input":{input},"dry_run":true}}"#);
     let (s, b) = request(addr, "POST", "/v1/operax/deployments/e2e/run", &run_body);
     assert_eq!(s, 200, "run body: {b}");
