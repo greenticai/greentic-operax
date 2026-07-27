@@ -128,11 +128,18 @@ fn log_directory(dir: &Directory) {
 /// should run this on a dedicated thread — mirrors
 /// `business_events::run_subscriber`.
 ///
+/// Writes discovered presence into `directory`, a shared, lock-guarded
+/// directory so a resolver on another thread can read the live state (see
+/// `PresenceResolver`, Task 8) instead of only seeing it logged.
+///
 /// Not exercised by this task's unit tests (no live NATS broker available
 /// here); a live-NATS integration test is deferred to a follow-up task.
 /// Wired to the CLI via the `operax presence subscribe` subcommand
 /// (`lib.rs::run_presence_subscribe`).
-pub fn run_presence_subscriber(config: PresenceSubscriberConfig) -> anyhow::Result<()> {
+pub fn run_presence_subscriber(
+    config: PresenceSubscriberConfig,
+    directory: std::sync::Arc<std::sync::RwLock<Directory>>,
+) -> anyhow::Result<()> {
     let rt = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()?;
@@ -144,7 +151,6 @@ pub fn run_presence_subscriber(config: PresenceSubscriberConfig) -> anyhow::Resu
         };
         let mut subscriber = client.subscribe(subject.clone()).await?;
         eprintln!("subscribed to {subject}");
-        let mut directory: Directory = HashMap::new();
         while let Some(msg) = subscriber.next().await {
             let presence = match decode_presence(&msg.payload) {
                 Ok(presence) => presence,
@@ -154,9 +160,12 @@ pub fn run_presence_subscriber(config: PresenceSubscriberConfig) -> anyhow::Resu
                 }
             };
             let now = now_ticks();
-            apply_presence(&mut directory, presence, now);
-            evict_stale(&mut directory, now, PRESENCE_TTL_SECS);
-            log_directory(&directory);
+            let mut guard = directory
+                .write()
+                .map_err(|_| anyhow::anyhow!("presence directory poisoned"))?;
+            apply_presence(&mut guard, presence, now);
+            evict_stale(&mut guard, now, PRESENCE_TTL_SECS);
+            log_directory(&guard);
         }
         Ok::<(), anyhow::Error>(())
     })
@@ -256,5 +265,43 @@ mod tests {
         );
         assert_eq!(resolve_endpoint(&dir, "t1", "unknown"), None);
         assert_eq!(resolve_endpoint(&dir, "t2", "orders"), None);
+    }
+
+    #[test]
+    fn apply_into_shared_directory() {
+        use std::sync::{Arc, RwLock};
+
+        let dir = Arc::new(RwLock::new(Directory::new()));
+        {
+            // Simulate what the subscriber loop does per message: apply and
+            // evict under a single write-lock acquisition.
+            let mut guard = dir.write().unwrap();
+            apply_presence(
+                &mut guard,
+                presence_with_url("i1", "t1", "orders", "http://new"),
+                10,
+            );
+            evict_stale(&mut guard, 10, PRESENCE_TTL_SECS);
+        }
+        let guard = dir.read().unwrap();
+        assert_eq!(
+            resolve_endpoint(&guard, "t1", "orders").as_deref(),
+            Some("http://new")
+        );
+    }
+
+    fn presence_with_url(instance: &str, tenant: &str, sor: &str, url: &str) -> SorxPresence {
+        SorxPresence {
+            schema: "greentic.sorx.presence.v1".into(),
+            instance_id: instance.into(),
+            tenant: tenant.into(),
+            environment: "prod".into(),
+            sor: sor.into(),
+            pack_version: "1.0.0".into(),
+            base_url: url.into(),
+            reachable: true,
+            offers: serde_json::Value::Null,
+            ts: "t".into(),
+        }
     }
 }

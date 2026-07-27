@@ -325,7 +325,8 @@ fn run_presence_subscribe(args: PresenceSubscribeArgs) -> Result<()> {
         nats_url,
         tenant: args.tenant,
     };
-    presence::run_presence_subscriber(config)
+    let directory = std::sync::Arc::new(std::sync::RwLock::new(presence::Directory::new()));
+    presence::run_presence_subscriber(config, directory)
         .map_err(|error| OperaxError::new("presence_subscribe_failed", error.to_string()))
 }
 
