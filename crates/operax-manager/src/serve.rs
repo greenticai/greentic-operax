@@ -1,11 +1,18 @@
 //! HTTP surface for the `operax serve` daemon. `handle_deployment_request` is a
-//! pure dispatch function (unit-tested); `start_deployment_server` (Task 8) wraps
-//! it in a hand-rolled TCP loop mirroring `start_manager_server`.
+//! pure dispatch function (unit-tested); `start_deployment_server` wraps it in
+//! a hand-rolled TCP loop mirroring `start_manager_server` in `lib.rs`, adding
+//! shared-secret auth (`is_authorized`) in front of every route except the
+//! health checks.
 
 use crate::deployment::{DeployError, DeploySpec, DeploymentManager};
+use operax_core::OperaxError;
 use serde::Deserialize;
 use serde_json::{Value, json};
+use std::collections::HashMap;
+use std::io::{Read, Write};
+use std::net::{TcpListener, TcpStream};
 use std::path::PathBuf;
+use std::sync::Arc;
 
 pub struct HttpReply {
     pub status: u16,
@@ -159,6 +166,145 @@ pub fn handle_deployment_request(
     HttpReply::error(404, "OPERAX_DEPLOYMENT_NOT_FOUND", "route not found")
 }
 
+/// Request headers keyed by lower-cased header name.
+pub type HttpHeaders = HashMap<String, String>;
+
+/// Shared-secret auth: accepts `Authorization: Bearer <secret>` or
+/// `X-Greentic-SorX-Secret: <secret>`. With no secret configured the daemon
+/// is open (local-dev convenience).
+pub fn is_authorized(headers: &HttpHeaders, secret: Option<&str>) -> bool {
+    let Some(secret) = secret else {
+        return true; // no secret configured -> open (local-dev)
+    };
+    // Collapsed let-chain (clippy::collapsible_if).
+    if let Some(bearer) = headers.get("authorization")
+        && bearer.strip_prefix("Bearer ").map(str::trim) == Some(secret)
+    {
+        return true;
+    }
+    headers.get("x-greentic-sorx-secret").map(String::as_str) == Some(secret)
+}
+
+/// Hand-rolled thread-per-connection TCP server for the deployment daemon.
+/// Mirrors `start_manager_server`'s structure in `lib.rs`: bind, accept loop,
+/// one thread per connection. Every route except `/healthz`/`/readyz` is
+/// gated by `is_authorized`.
+pub fn start_deployment_server(
+    mgr: Arc<DeploymentManager>,
+    bind: &str,
+    secret: Option<String>,
+) -> operax_core::Result<()> {
+    let listener = TcpListener::bind(bind)
+        .map_err(|err| OperaxError::new("manager_bind_failed", err.to_string()))?;
+    println!("OperaX deployment daemon listening on http://{bind}");
+    for stream in listener.incoming() {
+        let stream = stream.map_err(OperaxError::from)?;
+        let mgr = mgr.clone();
+        let secret = secret.clone();
+        std::thread::spawn(move || {
+            let _ = handle_deployment_stream(&mgr, stream, secret.as_deref());
+        });
+    }
+    Ok(())
+}
+
+fn handle_deployment_stream(
+    mgr: &DeploymentManager,
+    mut stream: TcpStream,
+    secret: Option<&str>,
+) -> operax_core::Result<()> {
+    let mut buffer = [0u8; 1024 * 256];
+    let read = stream.read(&mut buffer)?;
+    let (head, body) = split_request(&buffer[..read]);
+    let mut lines = head.split("\r\n");
+    let request_line = lines.next().unwrap_or_default();
+    let mut parts = request_line.split_whitespace();
+    let method = parts.next().unwrap_or("GET");
+    let raw_path = parts.next().unwrap_or("/");
+    let path = raw_path.split('?').next().unwrap_or(raw_path);
+
+    if method == "OPTIONS" {
+        return write_response(&mut stream, 204, &Value::Null);
+    }
+
+    let headers = parse_headers(lines);
+    let reply = if matches!(path, "/healthz" | "/readyz") || is_authorized(&headers, secret) {
+        handle_deployment_request(method, path, body, mgr)
+    } else {
+        HttpReply::error(401, "OPERAX_UNAUTHORIZED", "missing or invalid credentials")
+    };
+
+    write_response(&mut stream, reply.status, &reply.body)
+}
+
+/// Splits a raw request buffer into its head (decoded as lossy UTF-8; headers
+/// are expected to be ASCII) and its body, kept as raw bytes so JSON payloads
+/// survive intact.
+fn split_request(buf: &[u8]) -> (String, &[u8]) {
+    match buf.windows(4).position(|w| w == b"\r\n\r\n") {
+        Some(pos) => (
+            String::from_utf8_lossy(&buf[..pos]).into_owned(),
+            &buf[pos + 4..],
+        ),
+        None => (String::from_utf8_lossy(buf).into_owned(), &[]),
+    }
+}
+
+fn parse_headers<'a>(lines: impl Iterator<Item = &'a str>) -> HttpHeaders {
+    let mut headers = HttpHeaders::new();
+    for line in lines {
+        if let Some((name, value)) = line.split_once(':') {
+            headers.insert(name.trim().to_ascii_lowercase(), value.trim().to_string());
+        }
+    }
+    headers
+}
+
+fn write_response(stream: &mut TcpStream, status: u16, body: &Value) -> operax_core::Result<()> {
+    if status == 204 {
+        write!(
+            stream,
+            "HTTP/1.1 204 No Content\r\n{}\r\nContent-Length: 0\r\nConnection: close\r\n\r\n",
+            cors_headers()
+        )?;
+        return Ok(());
+    }
+    let body_text = serde_json::to_string(body)?;
+    write!(
+        stream,
+        "HTTP/1.1 {} {}\r\nContent-Type: application/json\r\n{}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
+        status,
+        status_text(status),
+        cors_headers(),
+        body_text.len(),
+        body_text
+    )?;
+    Ok(())
+}
+
+fn status_text(status: u16) -> &'static str {
+    match status {
+        200 => "OK",
+        201 => "Created",
+        204 => "No Content",
+        400 => "Bad Request",
+        401 => "Unauthorized",
+        404 => "Not Found",
+        405 => "Method Not Allowed",
+        409 => "Conflict",
+        422 => "Unprocessable Entity",
+        _ => "Internal Server Error",
+    }
+}
+
+/// CORS headers for the deployment daemon. Replicated locally rather than
+/// imported from `lib.rs` (whose `cors_headers` is private and scoped to the
+/// manager server's method/header set); extended with PUT/DELETE and the
+/// SoRX secret header that this API actually uses.
+fn cors_headers() -> &'static str {
+    "Access-Control-Allow-Origin: *\r\nAccess-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS\r\nAccess-Control-Allow-Headers: Content-Type, Accept, Authorization, X-Greentic-SorX-Secret, X-Greentic-Tenant-Id, X-Greentic-Caller-Id, X-Greentic-Caller-Role, X-Greentic-Team, X-Greentic-Channel, X-Greentic-Locale, Accept-Language"
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -289,5 +435,18 @@ mod tests {
             handle_deployment_request("GET", "/healthz", b"", &m).status,
             200
         );
+    }
+
+    #[test]
+    fn auth_requires_matching_secret() {
+        // Represent headers as a simple map for the unit test.
+        let mut h = std::collections::HashMap::new();
+        assert!(!is_authorized(&h, Some("s3cret"))); // no header, secret set → deny
+        h.insert("authorization".to_string(), "Bearer s3cret".to_string());
+        assert!(is_authorized(&h, Some("s3cret"))); // bearer matches
+        h.clear();
+        h.insert("x-greentic-sorx-secret".to_string(), "s3cret".to_string());
+        assert!(is_authorized(&h, Some("s3cret"))); // header matches
+        assert!(is_authorized(&h, None)); // no secret configured → open
     }
 }
