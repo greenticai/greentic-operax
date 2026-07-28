@@ -65,10 +65,17 @@ greentic-operax serve \
 }
 ```
 
-`team`, `locale`, `sorx_url`, `sor`, and `environment` are optional; `id`,
-`gtpack_path`, and `tenant` are required. **At least one of `sorx_url` / `sor`
-must be set** — deploying with neither is rejected. The deployment's `id` is
-chosen by the caller and is stable across upgrades.
+`team`, `locale`, `sorx_url`, `sor`, and `environment` are optional; `id` and
+`tenant` are required. **At least one of `sorx_url` / `sor` must be set** —
+deploying with neither is rejected. The deployment's `id` is chosen by the
+caller and is stable across upgrades.
+
+`gtpack_path` and `reference` are each optional, but **at least one of the two
+must be set** — deploying with neither is rejected. `gtpack_path` is a local
+path to a `.gtpack` file or an already-unpacked handoff directory, loaded
+as-is. `reference` is a pack reference resolved and fetched before load (see
+"Deploy by reference" below). If both are set, `reference` takes precedence —
+the fetched pack is what gets loaded, and `gtpack_path` is ignored.
 
 `environment` is a free-form label (e.g. `"prod"`, `"staging"`) scoping this
 deployment to a single environment. Omitted (the default) means a wildcard:
@@ -77,6 +84,72 @@ environment — the unchanged slice-1/2/3 behavior. Set, it restricts both
 discover-mode resolution and business-event routing to that environment (see
 below); it has no effect on static (`sorx_url`-only) deployments' `run`
 behavior.
+
+### Deploy by reference
+
+Instead of (or alongside) a local `gtpack_path`, a deploy request can supply
+`reference`: a pack reference the daemon resolves and fetches on your behalf.
+
+```json
+{
+  "id": "acme-daily-transactions",
+  "reference": "oci://ghcr.io/acme/handoff@sha256:abc123...",
+  "tenant": "acme",
+  "sorx_url": "http://localhost:8088"
+}
+```
+
+Supported `reference` schemes:
+
+| Scheme | Resolves to |
+| --- | --- |
+| `oci://<registry>/<name>@<digest\|tag>` | Pulled directly from the given OCI registry. |
+| `repo://<name>` | Pulled as an OCI reference `{GREENTIC_REPO_REGISTRY_BASE}/<name>`. |
+| `store://<name>` | Pulled as an OCI reference `{GREENTIC_STORE_REGISTRY_BASE}/<name>`. |
+| `http://<url>` / `https://<url>` | Downloaded directly. |
+| `file://<path>` (or a bare local path) | Read from local disk. A path that is a directory is used as-is (unpacked handoff dir); a path that is a file is cached like any other fetched artifact. |
+
+`repo://` and `store://` require `GREENTIC_REPO_REGISTRY_BASE` /
+`GREENTIC_STORE_REGISTRY_BASE` respectively to be set in the daemon's
+environment — deploying with the scheme but no matching env var fails (see
+errors below).
+
+Fetched (non-directory) content is hashed with SHA-256 and written into a
+durable, managed cache directory — `packs/` next to the deployment registry
+file (e.g. `~/.greentic/operax/packs` alongside the default
+`~/.greentic/operax/deployments.json`) — as `<hex-digest>.gtpack`. A repeat
+fetch of identical bytes reuses the existing cached file instead of writing
+again. The deployment record persists both the resolved local cache path
+(`gtpack_path`, actually loaded) and the original `reference` string
+(`source_ref`, kept as provenance only). On daemon restart, a deployment
+reloads directly from its persisted `gtpack_path` — the cached file is reused
+and `reference` is not re-fetched.
+
+Upgrading a deployment (`PUT /v1/operax/deployments/{id}`) is still
+path-only in this slice: its body only accepts `gtpack_path`, with no
+`reference` field, so upgrading an existing deployment by reference is not
+yet supported.
+
+#### Deploy errors (pack source)
+
+| Status | Code | When |
+| --- | --- | --- |
+| `400` | `OPERAX_BAD_REQUEST` | Deploy request sets neither `gtpack_path` nor `reference`. |
+| `502` | `OPERAX_PACK_FETCH_FAILED` | Resolving/fetching `reference` failed: registry unreachable, a malformed or unpullable OCI/HTTP reference, no layer matching a known pack media type in the OCI manifest, a local file that doesn't exist, or a `repo://`/`store://` reference whose env base isn't set. |
+
+#### Boundaries
+
+- No catalog listing/discovery endpoint: deploy-by-reference only fetches a
+  reference you already know; there is no route to browse or search what a
+  registry has published.
+- `store://` resolves against `GREENTIC_STORE_REGISTRY_BASE`, but the store
+  side has no operala runtime packs published to it yet (an upstream publish
+  pipeline is still needed). `oci://` and `http(s)://` work against arbitrary
+  registries/URLs today and are the practical way to exercise this end to
+  end in the meantime.
+- The managed pack cache has no eviction or garbage collection yet — it
+  grows unboundedly as new references are fetched. Planned follow-up, not
+  implemented here.
 
 ### Static vs. discover mode
 
