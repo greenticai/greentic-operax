@@ -74,7 +74,7 @@ fn deploy_error_reply(err: DeployError) -> HttpReply {
             HttpReply::error(404, "OPERAX_DEPLOYMENT_NOT_FOUND", "deployment not found")
         }
         DeployError::PackLoad(m) => HttpReply::error(422, "OPERAX_PACK_LOAD_FAILED", m),
-        DeployError::Fetch(m) => HttpReply::error(422, "OPERAX_PACK_FETCH_FAILED", m),
+        DeployError::Fetch(m) => HttpReply::error(502, "OPERAX_PACK_FETCH_FAILED", m),
         DeployError::DeploymentFailed => HttpReply::error(
             409,
             "OPERAX_DEPLOYMENT_FAILED",
@@ -506,6 +506,15 @@ mod tests {
         let r = handle_deployment_request("POST", "/v1/operax/deployments", &deploy_body(), &m);
         assert_eq!(r.status, 409);
         assert_eq!(r.body["error"]["code"], "OPERAX_DEPLOYMENT_EXISTS");
+    }
+
+    #[test]
+    fn deploy_with_neither_path_nor_ref_is_400() {
+        let m = mgr();
+        let body = serde_json::to_vec(&serde_json::json!({"id":"x","tenant":"demo"})).unwrap();
+        let r = handle_deployment_request("POST", "/v1/operax/deployments", &body, &m);
+        assert_eq!(r.status, 400);
+        assert_eq!(r.body["error"]["code"], "OPERAX_BAD_REQUEST");
     }
 
     #[test]
