@@ -249,11 +249,38 @@ fn select_layer<'a>(
     Ok(&layers[best_idx])
 }
 
+/// Compares the digest pinned in an OCI reference (if any) against the
+/// resolved digest of the content that was actually pulled.
+///
+/// Mirrors the `DigestMismatch` guard in `fetch_pack_to_cache` in
+/// `greentic-distributor-client/src/oci_packs.rs`: a reference that pins no
+/// digest (a tag-only reference, e.g. `oci://registry/name:tag`) always
+/// passes, since there is nothing to verify against. A pinned digest
+/// (`oci://registry/name@sha256:...`) must match exactly.
+fn verify_digest(expected: Option<&str>, resolved: &str, reference: &str) -> Result<()> {
+    if let Some(expected) = expected
+        && expected != resolved
+    {
+        return Err(OperaxError::new(
+            "pack_digest_mismatch",
+            format!(
+                "resolved digest for `{reference}` does not match pinned digest: expected {expected}, got {resolved}"
+            ),
+        ));
+    }
+    Ok(())
+}
+
 /// Pulls the chosen pack layer's bytes for `image_ref` anonymously over
 /// HTTPS. Mirrors `DefaultRegistryClient::pull` in
 /// `greentic-distributor-client/src/oci_packs.rs` (minus the manifest-type
 /// expansion step, which only matters for the distributor's broader
 /// artifact-manifest support).
+///
+/// Before returning the bytes, verifies the resolved content digest against
+/// any digest pinned in `image_ref` (mirrors the `DigestMismatch` guard in
+/// `fetch_pack_to_cache`), so a registry that returns content not matching
+/// the pinned digest is rejected before its bytes ever reach the cache.
 async fn pull_oci_layer_bytes(image_ref: &str) -> Result<Vec<u8>> {
     let reference: Reference = image_ref.parse().map_err(|err| {
         OperaxError::new(
@@ -276,6 +303,21 @@ async fn pull_oci_layer_bytes(image_ref: &str) -> Result<Vec<u8>> {
 
     let preferred = default_preferred_pack_layer_media_types();
     let chosen = select_layer(&image.layers, &preferred, image_ref)?;
+
+    // Resolve the content digest with the same precedence as the mirror:
+    // prefer the manifest-level digest reported by the pull, otherwise
+    // compute it ourselves from the chosen layer's bytes. (Unlike the
+    // distributor's `PulledLayer`, this crate's `oci_distribution::client`
+    // 0.11 `ImageLayer` carries no per-layer digest, so there is no
+    // middle tier to fall back to here.) `sha256_digest` already renders
+    // the `sha256:`-prefixed form used by `Reference::digest()`, so the
+    // two sides compare directly without extra normalization.
+    let resolved_digest = image
+        .digest
+        .clone()
+        .unwrap_or_else(|| sha256_digest(&chosen.data));
+    verify_digest(reference.digest(), &resolved_digest, image_ref)?;
+
     Ok(chosen.data.clone())
 }
 
@@ -302,6 +344,35 @@ fn pull_oci_blob(image_ref: &str, cache_dir: &Path) -> Result<PathBuf> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn verify_digest_allows_tag_only_reference() {
+        verify_digest(None, "sha256:abc123", "oci://ghcr.io/acme/widget:1.0")
+            .expect("no pinned digest to verify against");
+    }
+
+    #[test]
+    fn verify_digest_allows_matching_digest() {
+        verify_digest(
+            Some("sha256:abc123"),
+            "sha256:abc123",
+            "oci://ghcr.io/acme/widget@sha256:abc123",
+        )
+        .expect("matching digest passes");
+    }
+
+    #[test]
+    fn verify_digest_rejects_mismatched_digest() {
+        let err = verify_digest(
+            Some("sha256:abc123"),
+            "sha256:def456",
+            "oci://ghcr.io/acme/widget@sha256:abc123",
+        )
+        .unwrap_err();
+        assert_eq!(err.code, "pack_digest_mismatch");
+        assert!(err.message.contains("sha256:abc123"));
+        assert!(err.message.contains("sha256:def456"));
+    }
 
     #[test]
     fn maps_repo_and_store_schemes_from_env() {
