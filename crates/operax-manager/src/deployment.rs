@@ -456,24 +456,24 @@ impl DeploymentManager {
         }
     }
 
-    /// Fan out a business event to every `Ready` deployment for `tenant`
-    /// whose runtime declares a matching `consumes` subscription for `topic`.
-    /// NATS-free: callers (e.g. a NATS subscriber) drive this directly.
+    /// Collect the ids of every `Ready` deployment for `tenant` that is
+    /// applicable to `event_env` (its `environment` is unset, i.e. a
+    /// wildcard, or matches `event_env` exactly) and whose runtime declares
+    /// a matching `consumes` subscription for `topic`.
     /// A poisoned lock yields an empty `Vec` rather than panicking.
-    pub fn route_event(
-        &self,
-        tenant: &str,
-        topic: &str,
-        input: serde_json::Value,
-        dry_run: bool,
-    ) -> Vec<RouteOutcome> {
-        // Collect matching ids under the read lock, then release it before running.
-        let matched: Vec<String> = match self.slots.read() {
+    pub fn matching_deployments(&self, event_env: &str, tenant: &str, topic: &str) -> Vec<String> {
+        // Collect matching ids under the read lock, then release it before returning.
+        match self.slots.read() {
             Ok(slots) => slots
                 .values()
                 .filter(|slot| {
                     slot.record.tenant == tenant
                         && matches!(slot.status, DeploymentStatus::Ready)
+                        && slot
+                            .record
+                            .environment
+                            .as_deref()
+                            .is_none_or(|e| e == event_env)
                         && slot.runtime.as_ref().is_some_and(|rt| {
                             rt.consumes()
                                 .iter()
@@ -482,12 +482,26 @@ impl DeploymentManager {
                 })
                 .map(|slot| slot.record.id.clone())
                 .collect(),
-            Err(_) => return Vec::new(),
-        };
-        matched
+            Err(_) => Vec::new(),
+        }
+    }
+
+    /// Fan out a business event to every `Ready` deployment matching
+    /// `event_env`/`tenant`/`topic` (see `matching_deployments`). Each run
+    /// is dispatched with `caller_role = Some("business-event")`.
+    /// NATS-free: callers (e.g. a NATS subscriber) drive this directly.
+    pub fn route_event(
+        &self,
+        event_env: &str,
+        tenant: &str,
+        topic: &str,
+        input: serde_json::Value,
+        dry_run: bool,
+    ) -> Vec<RouteOutcome> {
+        self.matching_deployments(event_env, tenant, topic)
             .into_iter()
             .map(|id| {
-                let result = self.run(&id, input.clone(), dry_run);
+                let result = self.run_as(&id, input.clone(), dry_run, Some("business-event"));
                 RouteOutcome {
                     deployment_id: id,
                     result,
@@ -811,6 +825,7 @@ mod tests {
                 .expect("parse fixture input");
         // matching topic for tenant "demo" -> exactly "recon" runs
         let outcomes = mgr.route_event(
+            "prod",
             "demo",
             "sorla.tenancy.payment-recorded",
             payload.clone(),
@@ -822,13 +837,37 @@ mod tests {
 
         // non-matching topic -> no deployments
         assert!(
-            mgr.route_event("demo", "sorla.tenancy.nope", payload.clone(), true)
+            mgr.route_event("prod", "demo", "sorla.tenancy.nope", payload.clone(), true)
                 .is_empty()
         );
         // matching topic but wrong tenant string -> no deployments
         assert!(
-            mgr.route_event("nobody", "sorla.tenancy.payment-recorded", payload, true)
-                .is_empty()
+            mgr.route_event(
+                "prod",
+                "nobody",
+                "sorla.tenancy.payment-recorded",
+                payload,
+                true
+            )
+            .is_empty()
+        );
+    }
+
+    #[test]
+    fn matching_deployments_filters_env_tenant_topic() {
+        let mgr = test_manager();
+        mgr.deploy(deploy_spec("recon")).expect("deploy"); // env None (wildcard)
+        let mut prod = deploy_spec("recon-prod");
+        prod.environment = Some("prod".to_string());
+        mgr.deploy(prod).expect("deploy prod");
+        // "prod" event matches both the wildcard and the prod deployment
+        let mut ids = mgr.matching_deployments("prod", "demo", "sorla.tenancy.payment-recorded");
+        ids.sort();
+        assert_eq!(ids, vec!["recon".to_string(), "recon-prod".to_string()]);
+        // "staging" event matches only the wildcard
+        assert_eq!(
+            mgr.matching_deployments("staging", "demo", "sorla.tenancy.payment-recorded"),
+            vec!["recon"]
         );
     }
 
