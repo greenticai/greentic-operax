@@ -99,6 +99,7 @@ fn route_event_runs_matching_deployment() {
             locale: None,
             sorx_url: Some("http://127.0.0.1:8099".into()),
             sor: None,
+            environment: None,
         })
         .expect("deploy tenancy pack");
 

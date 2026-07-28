@@ -44,6 +44,8 @@ struct DeployBody {
     sorx_url: Option<String>,
     #[serde(default)]
     sor: Option<String>,
+    #[serde(default)]
+    environment: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -121,6 +123,7 @@ pub fn handle_deployment_request(
                     locale: b.locale,
                     sorx_url: b.sorx_url,
                     sor: b.sor,
+                    environment: b.environment,
                 };
                 return match mgr.deploy(spec) {
                     Ok(summary) => HttpReply::new(201, json!(summary)),

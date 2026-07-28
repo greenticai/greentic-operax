@@ -26,6 +26,9 @@ pub struct DeploymentRecord {
     /// this deployment is pinned to the static `sorx_url` above.
     #[serde(default)]
     pub sor: Option<String>,
+    /// Free-form deployment environment label (e.g. `"prod"`, `"staging"`).
+    #[serde(default)]
+    pub environment: Option<String>,
     pub active: DeploymentVersion,
     /// Previous versions, newest-first, capped (see `HISTORY_CAP`).
     #[serde(default)]
@@ -96,6 +99,8 @@ pub struct DeploySpec {
     /// optional with `sorx_url`: at least one must be set (enforced in
     /// `deploy`).
     pub sor: Option<String>,
+    /// Free-form deployment environment label (e.g. `"prod"`, `"staging"`).
+    pub environment: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -270,6 +275,7 @@ impl DeploymentManager {
             locale: spec.locale,
             sorx_url: spec.sorx_url,
             sor: spec.sor,
+            environment: spec.environment,
             active: DeploymentVersion {
                 version: 1,
                 gtpack_path: spec.gtpack_path,
@@ -506,6 +512,7 @@ mod tests {
                 locale: None,
                 sorx_url: Some("http://localhost:8088".to_string()),
                 sor: None,
+                environment: None,
                 active: sample_version(1),
                 history: vec![],
             }],
@@ -605,6 +612,7 @@ mod tests {
             locale: None,
             sorx_url: Some("http://localhost:8088".to_string()),
             sor: None,
+            environment: None,
         }
     }
 
@@ -698,6 +706,7 @@ mod tests {
             locale: None,
             sorx_url: Some("http://x".into()),
             sor: None,
+            environment: None,
             active: DeploymentVersion {
                 version: 1,
                 gtpack_path: fixture_gtpack(),
@@ -713,6 +722,7 @@ mod tests {
             locale: None,
             sorx_url: Some("http://x".into()),
             sor: None,
+            environment: None,
             active: DeploymentVersion {
                 version: 1,
                 gtpack_path: std::path::PathBuf::from("/nonexistent/x.gtpack"),
@@ -891,5 +901,15 @@ mod tests {
         spec.sor = Some("orders".into());
         let summary = mgr.deploy(spec).expect("discover deploy ok");
         assert_eq!(summary.active_version, 1);
+    }
+
+    #[test]
+    fn deploy_carries_environment() {
+        let mgr = test_manager();
+        let mut spec = deploy_spec("envdep");
+        spec.environment = Some("prod".to_string());
+        mgr.deploy(spec).expect("deploy");
+        let detail = mgr.get("envdep").expect("exists");
+        assert_eq!(detail.record.environment.as_deref(), Some("prod"));
     }
 }
