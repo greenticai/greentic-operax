@@ -13,9 +13,23 @@ use std::time::Duration;
 const INITIAL_BACKOFF: Duration = Duration::from_secs(1);
 const MAX_BACKOFF: Duration = Duration::from_secs(30);
 
+/// A session that ran at least this long before ending is considered "healthy":
+/// its next reconnect starts from INITIAL_BACKOFF rather than continuing to escalate.
+const HEALTHY_SESSION: Duration = Duration::from_secs(30);
+
 /// Next backoff: double, capped at `MAX_BACKOFF`.
 pub fn next_backoff(current: Duration) -> Duration {
     (current * 2).min(MAX_BACKOFF)
+}
+
+/// After a session ends, the next backoff: reset to INITIAL_BACKOFF if the session
+/// was healthy (ran >= HEALTHY_SESSION), else escalate via next_backoff.
+pub fn backoff_after(session_ran: Duration, current: Duration) -> Duration {
+    if session_ran >= HEALTHY_SESSION {
+        INITIAL_BACKOFF
+    } else {
+        next_backoff(current)
+    }
 }
 
 /// Run `session` repeatedly forever: each call connects+subscribes+consumes until it
@@ -32,6 +46,7 @@ where
 {
     let mut backoff = INITIAL_BACKOFF;
     loop {
+        let started = std::time::Instant::now();
         match session().await {
             Ok(()) => {
                 eprintln!("[operax serve] {label} subscription ended; reconnecting in {backoff:?}")
@@ -41,7 +56,7 @@ where
             ),
         }
         sleep(backoff).await;
-        backoff = next_backoff(backoff);
+        backoff = backoff_after(started.elapsed(), backoff);
     }
 }
 
@@ -57,6 +72,28 @@ mod tests {
             backoff = next_backoff(backoff);
             assert_eq!(backoff, Duration::from_secs(expected_secs));
         }
+    }
+
+    #[test]
+    fn backoff_after_resets_on_healthy_session() {
+        // healthy session (>= 30s) -> reset to 1s regardless of prior backoff
+        assert_eq!(
+            backoff_after(Duration::from_secs(30), Duration::from_secs(16)),
+            Duration::from_secs(1)
+        );
+        assert_eq!(
+            backoff_after(Duration::from_secs(120), Duration::from_secs(30)),
+            Duration::from_secs(1)
+        );
+        // short session -> escalate
+        assert_eq!(
+            backoff_after(Duration::from_millis(5), Duration::from_secs(1)),
+            Duration::from_secs(2)
+        );
+        assert_eq!(
+            backoff_after(Duration::from_secs(1), Duration::from_secs(16)),
+            Duration::from_secs(30)
+        );
     }
 
     /// `run_with_reconnect` never returns, so this test bounds the run with a real (not
