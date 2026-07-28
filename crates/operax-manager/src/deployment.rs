@@ -278,6 +278,25 @@ impl DeploymentManager {
             .map_err(|e| DeployError::Persist(e.to_string()))
     }
 
+    /// Resolve the effective local pack path from an optional reference and an
+    /// optional bare path. A `reference` is fetched into the managed pack cache
+    /// and wins when both are set; a bare `gtpack_path` is used as-is; neither
+    /// set is a bad request. Shared by `deploy` and `upgrade`.
+    fn resolve_effective_path(
+        &self,
+        reference: Option<&str>,
+        gtpack_path: Option<PathBuf>,
+    ) -> Result<PathBuf, DeployError> {
+        match (reference, gtpack_path) {
+            (Some(r), _) => operax_pack_loader::fetch::fetch_pack_ref(r, &self.pack_cache_dir)
+                .map_err(|e| DeployError::Fetch(e.to_string())),
+            (None, Some(p)) => Ok(p),
+            (None, None) => Err(DeployError::BadRequest(
+                "requires gtpack_path or reference".into(),
+            )),
+        }
+    }
+
     pub fn deploy(&self, spec: DeploySpec) -> Result<DeploymentSummary, DeployError> {
         if spec.sorx_url.is_none() && spec.sor.is_none() {
             return Err(DeployError::BadRequest(
@@ -297,16 +316,8 @@ impl DeploymentManager {
         // Resolve the effective local path (fetch by reference, or use the
         // bare path as-is), then load the pack first so a bad path/reference
         // fails BEFORE we mutate anything.
-        let local = match (spec.reference.as_deref(), spec.gtpack_path.clone()) {
-            (Some(r), _) => operax_pack_loader::fetch::fetch_pack_ref(r, &self.pack_cache_dir)
-                .map_err(|e| DeployError::Fetch(e.to_string()))?,
-            (None, Some(p)) => p,
-            (None, None) => {
-                return Err(DeployError::BadRequest(
-                    "deploy requires gtpack_path or reference".into(),
-                ));
-            }
-        };
+        let local =
+            self.resolve_effective_path(spec.reference.as_deref(), spec.gtpack_path.clone())?;
         let pack = operax_pack_loader::load_operational_pack(&local)
             .map_err(|e| DeployError::PackLoad(e.to_string()))?;
         let digest = pack.pack_digest.clone();
