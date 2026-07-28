@@ -164,32 +164,50 @@ pub fn run_presence_subscriber(
     let rt = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()?;
+    // `nats_url`/`tenant` are pulled out of `config` up front so the reconnect closure
+    // below can own its own clone of each on every call (it is `FnMut`, invoked once per
+    // reconnect attempt) rather than juggling borrows across an indefinite retry loop.
+    let nats_url = config.nats_url;
+    let tenant = config.tenant;
     rt.block_on(async move {
-        let client = async_nats::connect(&config.nats_url).await?;
-        let subject = match &config.tenant {
-            Some(tenant) => format!("greentic.presence.{tenant}.>"),
-            None => "greentic.presence.>".to_string(),
-        };
-        let mut subscriber = client.subscribe(subject.clone()).await?;
-        eprintln!("subscribed to {subject}");
-        while let Some(msg) = subscriber.next().await {
-            let presence = match decode_presence(&msg.payload) {
-                Ok(presence) => presence,
-                Err(err) => {
-                    eprintln!("skip undecodable presence on {}: {err}", msg.subject);
-                    continue;
+        crate::nats_reconnect::run_with_reconnect(
+            "presence",
+            move || {
+                let directory = directory.clone();
+                let nats_url = nats_url.clone();
+                let tenant = tenant.clone();
+                async move {
+                    let client = async_nats::connect(&nats_url).await?;
+                    let subject = match &tenant {
+                        Some(tenant) => format!("greentic.presence.{tenant}.>"),
+                        None => "greentic.presence.>".to_string(),
+                    };
+                    let mut subscriber = client.subscribe(subject.clone()).await?;
+                    eprintln!("subscribed to {subject}");
+                    while let Some(msg) = subscriber.next().await {
+                        let presence = match decode_presence(&msg.payload) {
+                            Ok(presence) => presence,
+                            Err(err) => {
+                                eprintln!("skip undecodable presence on {}: {err}", msg.subject);
+                                continue;
+                            }
+                        };
+                        let now = now_ticks();
+                        let mut guard = directory
+                            .write()
+                            .map_err(|_| anyhow::anyhow!("presence directory poisoned"))?;
+                        apply_presence(&mut guard, presence, now);
+                        evict_stale(&mut guard, now, PRESENCE_TTL_SECS);
+                        log_directory(&guard);
+                    }
+                    Ok::<(), anyhow::Error>(())
                 }
-            };
-            let now = now_ticks();
-            let mut guard = directory
-                .write()
-                .map_err(|_| anyhow::anyhow!("presence directory poisoned"))?;
-            apply_presence(&mut guard, presence, now);
-            evict_stale(&mut guard, now, PRESENCE_TTL_SECS);
-            log_directory(&guard);
-        }
-        Ok::<(), anyhow::Error>(())
-    })
+            },
+            |d| tokio::time::sleep(d),
+        )
+        .await;
+    });
+    Ok(())
 }
 
 #[cfg(test)]
