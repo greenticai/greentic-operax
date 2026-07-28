@@ -144,3 +144,62 @@ fn full_lifecycle_over_http() {
     let (s, _) = request(addr, "GET", "/v1/operax/deployments/e2e", "");
     assert_eq!(s, 404);
 }
+
+#[test]
+fn upgrade_by_reference_over_http() {
+    // Build a manager with a stub client, bind a fixed high port, spawn the server.
+    let builder: SorxClientBuilder = Box::new(|_url, _token| {
+        Arc::new(StubClient) as Arc<dyn operax_sorx_http::SorxClient + Send + Sync>
+    });
+    let mgr = Arc::new(DeploymentManager::new(
+        OperaxDeploymentStore::new(unique_registry_path()),
+        None,
+        builder,
+    ));
+
+    let addr = "127.0.0.1:8138"; // fixed high port for the test; adjust if flaky
+    std::thread::spawn(move || {
+        let _ = start_deployment_server(mgr, addr, None);
+    });
+    // give it a moment to bind:
+    std::thread::sleep(std::time::Duration::from_millis(200));
+
+    // Fixtures live at the repo root `examples/`; from this test's manifest dir
+    // (`crates/operax-manager`) that is `../../examples`.
+    let examples = concat!(env!("CARGO_MANIFEST_DIR"), "/../../examples");
+    let handoff = format!("{examples}/tenancy/handoff");
+    let deploy = format!(
+        r#"{{"id":"e2e-upgrade-ref","gtpack_path":"{handoff}","tenant":"demo","team":"property-ops","sorx_url":"http://localhost:8088"}}"#
+    );
+    let (s, _) = request(addr, "POST", "/v1/operax/deployments", &deploy);
+    assert_eq!(s, 201);
+
+    // Upgrade by `reference` only (no `gtpack_path`), pointing at the same
+    // unpacked handoff directory `fetch_pack_ref` passes through as-is.
+    let reference = format!("file://{handoff}");
+    let upgrade_body = format!(r#"{{"reference":"{reference}"}}"#);
+    let (s, b) = request(
+        addr,
+        "PUT",
+        "/v1/operax/deployments/e2e-upgrade-ref",
+        &upgrade_body,
+    );
+    assert_eq!(s, 200, "upgrade body: {b}");
+    let summary: serde_json::Value = serde_json::from_str(&b).expect("parse upgrade response");
+    assert_eq!(
+        summary["active_version"], 2,
+        "upgrade by reference should bump the active version: {b}"
+    );
+
+    let (s, b) = request(addr, "GET", "/v1/operax/deployments/e2e-upgrade-ref", "");
+    assert_eq!(s, 200, "get body: {b}");
+    let detail: serde_json::Value = serde_json::from_str(&b).expect("parse get response");
+    assert_eq!(
+        detail["record"]["active"]["version"], 2,
+        "active version should be 2 after upgrade: {b}"
+    );
+    assert_eq!(
+        detail["record"]["active"]["source_ref"], reference,
+        "active version should record the upgrade reference as provenance: {b}"
+    );
+}

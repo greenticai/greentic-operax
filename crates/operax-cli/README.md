@@ -125,16 +125,29 @@ again. The deployment record persists both the resolved local cache path
 reloads directly from its persisted `gtpack_path` — the cached file is reused
 and `reference` is not re-fetched.
 
-Upgrading a deployment (`PUT /v1/operax/deployments/{id}`) is still
-path-only in this slice: its body only accepts `gtpack_path`, with no
-`reference` field, so upgrading an existing deployment by reference is not
-yet supported.
+### Upgrade by reference
 
-#### Deploy errors (pack source)
+`PUT /v1/operax/deployments/{id}` accepts the same optional `gtpack_path` /
+`reference` pair as deploy, with the same mutual-optionality contract: at
+least one must be set, and if both are set `reference` takes precedence. The
+same schemes (`oci://`, `http(s)://`, `repo://`, `store://`, `file://`, or a
+bare local path) and the same env-var bases
+(`GREENTIC_REPO_REGISTRY_BASE`, `GREENTIC_STORE_REGISTRY_BASE`) apply.
+
+```json
+{
+  "reference": "oci://ghcr.io/acme/handoff@sha256:def456..."
+}
+```
+
+When upgraded by reference, the new active version's `source_ref` records
+the reference string as provenance — the same way `deploy` does.
+
+#### Deploy / upgrade errors (pack source)
 
 | Status | Code | When |
 | --- | --- | --- |
-| `400` | `OPERAX_BAD_REQUEST` | Deploy request sets neither `gtpack_path` nor `reference`. |
+| `400` | `OPERAX_BAD_REQUEST` | Deploy/upgrade request sets neither `gtpack_path` nor `reference`. |
 | `502` | `OPERAX_PACK_FETCH_FAILED` | Resolving/fetching `reference` failed: registry unreachable, a malformed or unpullable OCI/HTTP reference, no layer matching a known pack media type in the OCI manifest, a local file that doesn't exist, or a `repo://`/`store://` reference whose env base isn't set. |
 
 #### Boundaries

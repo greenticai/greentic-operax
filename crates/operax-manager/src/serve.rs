@@ -53,7 +53,10 @@ struct DeployBody {
 
 #[derive(Deserialize)]
 struct UpgradeBody {
-    gtpack_path: PathBuf,
+    #[serde(default)]
+    gtpack_path: Option<PathBuf>,
+    #[serde(default)]
+    reference: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -167,7 +170,7 @@ pub fn handle_deployment_request(
                     Ok(b) => b,
                     Err(r) => return r,
                 };
-                return match mgr.upgrade(id, b.gtpack_path) {
+                return match mgr.upgrade(id, b.gtpack_path, b.reference) {
                     Ok(summary) => HttpReply::new(200, json!(summary)),
                     Err(e) => deploy_error_reply(e),
                 };
