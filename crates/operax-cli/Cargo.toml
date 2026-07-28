@@ -44,7 +44,7 @@ serde_json.workspace = true
 greentic-pack.workspace = true
 zip.workspace = true
 async-nats = { version = "0.46", optional = true }
-tokio = { version = "1", features = ["rt", "macros", "sync"], optional = true }
+tokio = { version = "1", features = ["rt", "macros", "sync", "time"], optional = true }
 futures = { version = "0.3", optional = true }
 greentic-types = { version = "1.1", features = ["serde"], optional = true }
 anyhow = { version = "1", optional = true }

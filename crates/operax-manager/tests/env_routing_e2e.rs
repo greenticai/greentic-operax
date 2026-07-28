@@ -1,7 +1,8 @@
 //! End-to-end integration test: deploys a real tenancy pack as a static
-//! deployment and drives `DeploymentManager::route_event` directly (no HTTP
-//! server, no NATS broker) to confirm business-event routing matches the
-//! deployed pack's declared `consumes` capability and runs it.
+//! deployment with an `environment` scope and drives
+//! `DeploymentManager::route_event` directly (no HTTP server, no NATS
+//! broker) to confirm business-event routing only matches deployments whose
+//! `environment` equals the routed event's environment.
 
 use std::sync::Arc;
 
@@ -66,7 +67,7 @@ fn unique_registry_path() -> std::path::PathBuf {
     let n = COUNTER.fetch_add(1, Ordering::Relaxed);
     let mut p = std::env::temp_dir();
     p.push(format!(
-        "operax-event-routing-e2e-{}-{}.json",
+        "operax-env-routing-e2e-{}-{}.json",
         std::process::id(),
         n
     ));
@@ -75,7 +76,7 @@ fn unique_registry_path() -> std::path::PathBuf {
 }
 
 #[test]
-fn route_event_runs_matching_deployment() {
+fn env_scoped_routing() {
     let builder: SorxClientBuilder = Box::new(|_url, _token| {
         Arc::new(StubClient) as Arc<dyn operax_sorx_http::SorxClient + Send + Sync>
     });
@@ -92,14 +93,14 @@ fn route_event_runs_matching_deployment() {
 
     manager
         .deploy(DeploySpec {
-            id: "recon".into(),
+            id: "recon-prod".into(),
             gtpack_path: handoff.into(),
             tenant: "demo".into(),
             team: Some("property-ops".into()),
             locale: None,
             sorx_url: Some("http://127.0.0.1:8099".into()),
             sor: None,
-            environment: None,
+            environment: Some("prod".into()),
         })
         .expect("deploy tenancy pack");
 
@@ -115,27 +116,30 @@ fn route_event_runs_matching_deployment() {
         "prod",
         "demo",
         "sorla.tenancy.payment-recorded",
-        input,
+        input.clone(),
         true,
     );
     assert_eq!(
         outcomes.len(),
         1,
-        "expected exactly one matching deployment"
+        "expected exactly one matching deployment for the prod environment"
     );
-    assert_eq!(outcomes[0].deployment_id, "recon");
+    assert_eq!(outcomes[0].deployment_id, "recon-prod");
     assert!(
         outcomes[0].result.is_ok(),
         "run should succeed: {:?}",
         outcomes[0].result
     );
 
-    let empty = manager.route_event(
-        "prod",
+    let mismatched = manager.route_event(
+        "staging",
         "demo",
-        "sorla.tenancy.nope",
-        serde_json::json!({}),
+        "sorla.tenancy.payment-recorded",
+        input,
         true,
     );
-    assert!(empty.is_empty(), "non-matching topic should route nowhere");
+    assert!(
+        mismatched.is_empty(),
+        "deployment scoped to prod should not route staging events"
+    );
 }

@@ -102,6 +102,7 @@ mod tests {
                 locale: None,
                 sorx_url: Some("http://x".into()),
                 sor: None,
+                environment: None,
                 active: DeploymentVersion {
                     version: 2,
                     gtpack_path: PathBuf::from("/tmp/p.gtpack"),

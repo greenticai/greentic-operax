@@ -85,45 +85,73 @@ pub fn run_subscriber(config: SubscriberConfig) -> anyhow::Result<()> {
     let rt = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()?;
+    // Pull the fields we need on every reconnect attempt out of `config` up front, so the
+    // `FnMut` closure below owns its own clones instead of juggling borrows across an
+    // indefinite retry loop.
+    let nats_url = config.nats_url;
+    let tenant = config.tenant;
+    let artifact = config.artifact;
+    let sorx_base_url = config.sorx_base_url;
+    let sorx_token = config.sorx_token;
     rt.block_on(async move {
-        let client = async_nats::connect(&config.nats_url).await?;
-        let subject = format!("greentic.events.{}.>", config.tenant);
-        let mut subscriber = client.subscribe(subject.clone()).await?;
-        eprintln!("subscribed to {subject}");
-        while let Some(msg) = subscriber.next().await {
-            let env: EventEnvelope = match serde_json::from_slice(&msg.payload) {
-                Ok(env) => env,
-                Err(err) => {
-                    eprintln!("skip undecodable event on {}: {err}", msg.subject);
-                    continue;
-                }
-            };
-            for subscription in &subscriptions {
-                if !event_matches(subscription, &env) {
-                    continue;
-                }
-                let request = request_for(&env, subscription, &config.artifact);
-                let sorx =
-                    HttpSorxClient::new(config.sorx_base_url.clone(), config.sorx_token.clone());
-                let topic = env.topic.clone();
-                let artifact = config.artifact.clone();
-                match tokio::task::spawn_blocking(move || run_artifact_with_client(request, &sorx))
-                    .await
-                {
-                    Ok(Ok(report)) => {
-                        eprintln!(
-                            "ran {} for {topic}: {}",
-                            artifact.display(),
-                            report_outcome(&report)
-                        );
+        crate::nats_reconnect::run_with_reconnect(
+            "events",
+            move || {
+                let subscriptions = subscriptions.clone();
+                let nats_url = nats_url.clone();
+                let tenant = tenant.clone();
+                let artifact = artifact.clone();
+                let sorx_base_url = sorx_base_url.clone();
+                let sorx_token = sorx_token.clone();
+                async move {
+                    let client = async_nats::connect(&nats_url).await?;
+                    let subject = format!("greentic.events.{tenant}.>");
+                    let mut subscriber = client.subscribe(subject.clone()).await?;
+                    eprintln!("subscribed to {subject}");
+                    while let Some(msg) = subscriber.next().await {
+                        let env: EventEnvelope = match serde_json::from_slice(&msg.payload) {
+                            Ok(env) => env,
+                            Err(err) => {
+                                eprintln!("skip undecodable event on {}: {err}", msg.subject);
+                                continue;
+                            }
+                        };
+                        for subscription in &subscriptions {
+                            if !event_matches(subscription, &env) {
+                                continue;
+                            }
+                            let request = request_for(&env, subscription, &artifact);
+                            let sorx =
+                                HttpSorxClient::new(sorx_base_url.clone(), sorx_token.clone());
+                            let topic = env.topic.clone();
+                            let artifact_for_log = artifact.clone();
+                            match tokio::task::spawn_blocking(move || {
+                                run_artifact_with_client(request, &sorx)
+                            })
+                            .await
+                            {
+                                Ok(Ok(report)) => {
+                                    eprintln!(
+                                        "ran {} for {topic}: {}",
+                                        artifact_for_log.display(),
+                                        report_outcome(&report)
+                                    );
+                                }
+                                Ok(Err(err)) => eprintln!("run failed for {topic}: {err}"),
+                                Err(join_err) => {
+                                    eprintln!("run task panicked for {topic}: {join_err}")
+                                }
+                            }
+                        }
                     }
-                    Ok(Err(err)) => eprintln!("run failed for {topic}: {err}"),
-                    Err(join_err) => eprintln!("run task panicked for {topic}: {join_err}"),
+                    Ok::<(), anyhow::Error>(())
                 }
-            }
-        }
-        Ok::<(), anyhow::Error>(())
-    })
+            },
+            |d| tokio::time::sleep(d),
+        )
+        .await;
+    });
+    Ok(())
 }
 
 /// Routes NATS business events into the deployment registry. Subscribes to
@@ -142,52 +170,69 @@ pub fn run_event_router(
         .enable_all()
         .build()?;
     rt.block_on(async move {
-        let client = async_nats::connect(&nats_url).await?;
-        let mut subscriber = client.subscribe("greentic.events.>").await?;
-        eprintln!("[operax serve] event router subscribed to greentic.events.>");
-        while let Some(msg) = subscriber.next().await {
-            let env: EventEnvelope = match serde_json::from_slice(&msg.payload) {
-                Ok(env) => env,
-                Err(err) => {
-                    eprintln!("skip undecodable event on {}: {err}", msg.subject);
-                    continue;
+        crate::nats_reconnect::run_with_reconnect(
+            "event router",
+            move || {
+                let nats_url = nats_url.clone();
+                let manager = manager.clone();
+                async move {
+                    let client = async_nats::connect(&nats_url).await?;
+                    let mut subscriber = client.subscribe("greentic.events.>").await?;
+                    eprintln!("[operax serve] event router subscribed to greentic.events.>");
+                    while let Some(msg) = subscriber.next().await {
+                        let env: EventEnvelope = match serde_json::from_slice(&msg.payload) {
+                            Ok(env) => env,
+                            Err(err) => {
+                                eprintln!("skip undecodable event on {}: {err}", msg.subject);
+                                continue;
+                            }
+                        };
+                        let event_env = env.tenant.env.as_str().to_string();
+                        let tenant = env.tenant.tenant.to_string();
+                        let topic = env.topic.clone();
+                        let payload = env.payload.clone();
+                        let matched = manager.matching_deployments(&event_env, &tenant, &topic);
+                        if matched.is_empty() {
+                            eprintln!("[operax serve] event {topic} matched no deployments");
+                            continue;
+                        }
+                        let handles: Vec<_> = matched
+                            .into_iter()
+                            .map(|id| {
+                                let mgr = manager.clone();
+                                let payload = payload.clone();
+                                let topic = topic.clone();
+                                tokio::task::spawn_blocking(move || {
+                                    let result =
+                                        mgr.run_as(&id, payload, false, Some("business-event"));
+                                    (topic, id, result)
+                                })
+                            })
+                            .collect();
+                        for joined in futures::future::join_all(handles).await {
+                            match joined {
+                                Ok((topic, id, Ok(_))) => {
+                                    eprintln!("[operax serve] routed {topic} -> {id}: ok")
+                                }
+                                Ok((topic, id, Err(e))) => {
+                                    eprintln!(
+                                        "[operax serve] routed {topic} -> {id}: failed: {e:?}"
+                                    )
+                                }
+                                Err(join_err) => {
+                                    eprintln!("[operax serve] route task panicked: {join_err}")
+                                }
+                            }
+                        }
+                    }
+                    Ok::<(), anyhow::Error>(())
                 }
-            };
-            let tenant = env.tenant.tenant.to_string();
-            let topic = env.topic.clone();
-            let payload = env.payload.clone();
-            let manager = manager.clone();
-            let route_topic = topic.clone();
-            let outcomes = match tokio::task::spawn_blocking(move || {
-                manager.route_event(&tenant, &route_topic, payload, false)
-            })
-            .await
-            {
-                Ok(outcomes) => outcomes,
-                Err(join_err) => {
-                    eprintln!("[operax serve] event route task failed to join: {join_err}");
-                    continue;
-                }
-            };
-            if outcomes.is_empty() {
-                eprintln!("[operax serve] event {topic} matched no deployments");
-            }
-            for outcome in outcomes {
-                match &outcome.result {
-                    Ok(_) => eprintln!(
-                        "[operax serve] routed {topic} -> {}: ok",
-                        outcome.deployment_id
-                    ),
-                    Err(e) => eprintln!(
-                        "[operax serve] routed {topic} -> {}: failed: {e:?}",
-                        outcome.deployment_id
-                    ),
-                }
-            }
-        }
-        eprintln!("[operax serve] event router subscription ended; routing stopped");
-        Ok::<(), anyhow::Error>(())
-    })
+            },
+            |d| tokio::time::sleep(d),
+        )
+        .await;
+    });
+    Ok(())
 }
 
 #[cfg(test)]

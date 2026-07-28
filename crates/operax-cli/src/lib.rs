@@ -11,6 +11,8 @@ use std::process::ExitCode;
 #[cfg(feature = "events")]
 mod business_events;
 #[cfg(feature = "events")]
+mod nats_reconnect;
+#[cfg(feature = "events")]
 mod presence;
 mod test_runtime;
 

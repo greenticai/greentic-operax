@@ -44,6 +44,8 @@ struct DeployBody {
     sorx_url: Option<String>,
     #[serde(default)]
     sor: Option<String>,
+    #[serde(default)]
+    environment: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -121,6 +123,7 @@ pub fn handle_deployment_request(
                     locale: b.locale,
                     sorx_url: b.sorx_url,
                     sor: b.sor,
+                    environment: b.environment,
                 };
                 return match mgr.deploy(spec) {
                     Ok(summary) => HttpReply::new(201, json!(summary)),
@@ -328,14 +331,14 @@ mod tests {
     // 503 `Unresolved` mapping without a real SoRX discovery backend.
     struct SResolver;
     impl SorxResolver for SResolver {
-        fn resolve(&self, _tenant: &str, _sor: &str) -> Option<String> {
+        fn resolve(&self, _env: Option<&str>, _tenant: &str, _sor: &str) -> Option<String> {
             Some("http://localhost:8088".to_string())
         }
     }
 
     struct SResolverNone;
     impl SorxResolver for SResolverNone {
-        fn resolve(&self, _tenant: &str, _sor: &str) -> Option<String> {
+        fn resolve(&self, _env: Option<&str>, _tenant: &str, _sor: &str) -> Option<String> {
             None
         }
     }

@@ -26,6 +26,9 @@ pub struct DeploymentRecord {
     /// this deployment is pinned to the static `sorx_url` above.
     #[serde(default)]
     pub sor: Option<String>,
+    /// Free-form deployment environment label (e.g. `"prod"`, `"staging"`).
+    #[serde(default)]
+    pub environment: Option<String>,
     pub active: DeploymentVersion,
     /// Previous versions, newest-first, capped (see `HISTORY_CAP`).
     #[serde(default)]
@@ -66,7 +69,7 @@ pub type SorxClientBuilder =
 /// `DeploymentManager` to discover SoRX endpoints dynamically instead of
 /// relying solely on the static `sorx_url` persisted on a `DeploymentRecord`.
 pub trait SorxResolver: Send + Sync {
-    fn resolve(&self, tenant: &str, sor: &str) -> Option<String>;
+    fn resolve(&self, env: Option<&str>, tenant: &str, sor: &str) -> Option<String>;
 }
 
 pub struct DeploymentSlot {
@@ -96,6 +99,8 @@ pub struct DeploySpec {
     /// optional with `sorx_url`: at least one must be set (enforced in
     /// `deploy`).
     pub sor: Option<String>,
+    /// Free-form deployment environment label (e.g. `"prod"`, `"staging"`).
+    pub environment: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -270,6 +275,7 @@ impl DeploymentManager {
             locale: spec.locale,
             sorx_url: spec.sorx_url,
             sor: spec.sor,
+            environment: spec.environment,
             active: DeploymentVersion {
                 version: 1,
                 gtpack_path: spec.gtpack_path,
@@ -402,6 +408,18 @@ impl DeploymentManager {
         input: serde_json::Value,
         dry_run: bool,
     ) -> Result<crate::ManagerRunResult, DeployError> {
+        self.run_as(id, input, dry_run, None)
+    }
+
+    /// Same as `run`, but additionally threads `caller_role` through to the
+    /// deployment's `ManagerRuntime`. `None` preserves the existing default.
+    pub fn run_as(
+        &self,
+        id: &str,
+        input: serde_json::Value,
+        dry_run: bool,
+        caller_role: Option<&str>,
+    ) -> Result<crate::ManagerRunResult, DeployError> {
         let slots = self
             .slots
             .read()
@@ -413,6 +431,7 @@ impl DeploymentManager {
         };
         let discover = slot.record.sor.clone();
         let tenant = slot.record.tenant.clone();
+        let record_environment = slot.record.environment.clone();
         // Drop the read lock before running so other deployments proceed.
         drop(slots);
 
@@ -422,37 +441,39 @@ impl DeploymentManager {
                     .resolver
                     .as_ref()
                     .ok_or(DeployError::DiscoveryUnavailable)?;
-                let url = resolver.resolve(&tenant, &sor).ok_or_else(|| {
-                    DeployError::Unresolved(format!("no reachable SoRX for {tenant}/{sor}"))
-                })?;
+                let url = resolver
+                    .resolve(record_environment.as_deref(), &tenant, &sor)
+                    .ok_or_else(|| {
+                        DeployError::Unresolved(format!("no reachable SoRX for {tenant}/{sor}"))
+                    })?;
                 let client = (self.client_builder)(&url, self.token.as_deref());
-                rt.run_with_client(input, dry_run, false, client.as_ref())
+                rt.run_with_client_as(input, dry_run, false, caller_role, client.as_ref())
                     .map_err(|e| DeployError::Internal(e.to_string()))
             }
             None => rt
-                .run_input(input, dry_run, false)
+                .run_input_as(input, dry_run, false, caller_role)
                 .map_err(|e| DeployError::Internal(e.to_string())),
         }
     }
 
-    /// Fan out a business event to every `Ready` deployment for `tenant`
-    /// whose runtime declares a matching `consumes` subscription for `topic`.
-    /// NATS-free: callers (e.g. a NATS subscriber) drive this directly.
+    /// Collect the ids of every `Ready` deployment for `tenant` that is
+    /// applicable to `event_env` (its `environment` is unset, i.e. a
+    /// wildcard, or matches `event_env` exactly) and whose runtime declares
+    /// a matching `consumes` subscription for `topic`.
     /// A poisoned lock yields an empty `Vec` rather than panicking.
-    pub fn route_event(
-        &self,
-        tenant: &str,
-        topic: &str,
-        input: serde_json::Value,
-        dry_run: bool,
-    ) -> Vec<RouteOutcome> {
-        // Collect matching ids under the read lock, then release it before running.
-        let matched: Vec<String> = match self.slots.read() {
+    pub fn matching_deployments(&self, event_env: &str, tenant: &str, topic: &str) -> Vec<String> {
+        // Collect matching ids under the read lock, then release it before returning.
+        match self.slots.read() {
             Ok(slots) => slots
                 .values()
                 .filter(|slot| {
                     slot.record.tenant == tenant
                         && matches!(slot.status, DeploymentStatus::Ready)
+                        && slot
+                            .record
+                            .environment
+                            .as_deref()
+                            .is_none_or(|e| e == event_env)
                         && slot.runtime.as_ref().is_some_and(|rt| {
                             rt.consumes()
                                 .iter()
@@ -461,12 +482,26 @@ impl DeploymentManager {
                 })
                 .map(|slot| slot.record.id.clone())
                 .collect(),
-            Err(_) => return Vec::new(),
-        };
-        matched
+            Err(_) => Vec::new(),
+        }
+    }
+
+    /// Fan out a business event to every `Ready` deployment matching
+    /// `event_env`/`tenant`/`topic` (see `matching_deployments`). Each run
+    /// is dispatched with `caller_role = Some("business-event")`.
+    /// NATS-free: callers (e.g. a NATS subscriber) drive this directly.
+    pub fn route_event(
+        &self,
+        event_env: &str,
+        tenant: &str,
+        topic: &str,
+        input: serde_json::Value,
+        dry_run: bool,
+    ) -> Vec<RouteOutcome> {
+        self.matching_deployments(event_env, tenant, topic)
             .into_iter()
             .map(|id| {
-                let result = self.run(&id, input.clone(), dry_run);
+                let result = self.run_as(&id, input.clone(), dry_run, Some("business-event"));
                 RouteOutcome {
                     deployment_id: id,
                     result,
@@ -506,6 +541,7 @@ mod tests {
                 locale: None,
                 sorx_url: Some("http://localhost:8088".to_string()),
                 sor: None,
+                environment: None,
                 active: sample_version(1),
                 history: vec![],
             }],
@@ -605,6 +641,7 @@ mod tests {
             locale: None,
             sorx_url: Some("http://localhost:8088".to_string()),
             sor: None,
+            environment: None,
         }
     }
 
@@ -698,6 +735,7 @@ mod tests {
             locale: None,
             sorx_url: Some("http://x".into()),
             sor: None,
+            environment: None,
             active: DeploymentVersion {
                 version: 1,
                 gtpack_path: fixture_gtpack(),
@@ -713,6 +751,7 @@ mod tests {
             locale: None,
             sorx_url: Some("http://x".into()),
             sor: None,
+            environment: None,
             active: DeploymentVersion {
                 version: 1,
                 gtpack_path: std::path::PathBuf::from("/nonexistent/x.gtpack"),
@@ -786,6 +825,7 @@ mod tests {
                 .expect("parse fixture input");
         // matching topic for tenant "demo" -> exactly "recon" runs
         let outcomes = mgr.route_event(
+            "prod",
             "demo",
             "sorla.tenancy.payment-recorded",
             payload.clone(),
@@ -797,13 +837,37 @@ mod tests {
 
         // non-matching topic -> no deployments
         assert!(
-            mgr.route_event("demo", "sorla.tenancy.nope", payload.clone(), true)
+            mgr.route_event("prod", "demo", "sorla.tenancy.nope", payload.clone(), true)
                 .is_empty()
         );
         // matching topic but wrong tenant string -> no deployments
         assert!(
-            mgr.route_event("nobody", "sorla.tenancy.payment-recorded", payload, true)
-                .is_empty()
+            mgr.route_event(
+                "prod",
+                "nobody",
+                "sorla.tenancy.payment-recorded",
+                payload,
+                true
+            )
+            .is_empty()
+        );
+    }
+
+    #[test]
+    fn matching_deployments_filters_env_tenant_topic() {
+        let mgr = test_manager();
+        mgr.deploy(deploy_spec("recon")).expect("deploy"); // env None (wildcard)
+        let mut prod = deploy_spec("recon-prod");
+        prod.environment = Some("prod".to_string());
+        mgr.deploy(prod).expect("deploy prod");
+        // "prod" event matches both the wildcard and the prod deployment
+        let mut ids = mgr.matching_deployments("prod", "demo", "sorla.tenancy.payment-recorded");
+        ids.sort();
+        assert_eq!(ids, vec!["recon".to_string(), "recon-prod".to_string()]);
+        // "staging" event matches only the wildcard
+        assert_eq!(
+            mgr.matching_deployments("staging", "demo", "sorla.tenancy.payment-recorded"),
+            vec!["recon"]
         );
     }
 
@@ -846,7 +910,7 @@ mod tests {
     // Reused by later resolver-consuming slices (Task 4/5).
     struct StubResolver(Option<String>);
     impl SorxResolver for StubResolver {
-        fn resolve(&self, _t: &str, _s: &str) -> Option<String> {
+        fn resolve(&self, _env: Option<&str>, _t: &str, _s: &str) -> Option<String> {
             self.0.clone()
         }
     }
@@ -891,5 +955,15 @@ mod tests {
         spec.sor = Some("orders".into());
         let summary = mgr.deploy(spec).expect("discover deploy ok");
         assert_eq!(summary.active_version, 1);
+    }
+
+    #[test]
+    fn deploy_carries_environment() {
+        let mgr = test_manager();
+        let mut spec = deploy_spec("envdep");
+        spec.environment = Some("prod".to_string());
+        mgr.deploy(spec).expect("deploy");
+        let detail = mgr.get("envdep").expect("exists");
+        assert_eq!(detail.record.environment.as_deref(), Some("prod"));
     }
 }
