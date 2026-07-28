@@ -408,6 +408,18 @@ impl DeploymentManager {
         input: serde_json::Value,
         dry_run: bool,
     ) -> Result<crate::ManagerRunResult, DeployError> {
+        self.run_as(id, input, dry_run, None)
+    }
+
+    /// Same as `run`, but additionally threads `caller_role` through to the
+    /// deployment's `ManagerRuntime`. `None` preserves the existing default.
+    pub fn run_as(
+        &self,
+        id: &str,
+        input: serde_json::Value,
+        dry_run: bool,
+        caller_role: Option<&str>,
+    ) -> Result<crate::ManagerRunResult, DeployError> {
         let slots = self
             .slots
             .read()
@@ -435,11 +447,11 @@ impl DeploymentManager {
                         DeployError::Unresolved(format!("no reachable SoRX for {tenant}/{sor}"))
                     })?;
                 let client = (self.client_builder)(&url, self.token.as_deref());
-                rt.run_with_client(input, dry_run, false, client.as_ref())
+                rt.run_with_client_as(input, dry_run, false, caller_role, client.as_ref())
                     .map_err(|e| DeployError::Internal(e.to_string()))
             }
             None => rt
-                .run_input(input, dry_run, false)
+                .run_input_as(input, dry_run, false, caller_role)
                 .map_err(|e| DeployError::Internal(e.to_string())),
         }
     }

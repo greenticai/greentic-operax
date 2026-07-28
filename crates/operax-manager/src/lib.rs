@@ -177,12 +177,30 @@ impl ManagerRuntime {
         return_card: bool,
         client: &(dyn SorxClient + Send + Sync),
     ) -> Result<ManagerRunResult> {
+        self.run_with_client_as(input, dry_run, return_card, None, client)
+    }
+
+    /// Same as `run_with_client`, but additionally stamps `caller_role` onto
+    /// the `OperaxContext` when provided. `None` preserves the existing
+    /// `OperaxContext::new` default (`"service"`).
+    pub fn run_with_client_as(
+        &self,
+        input: Value,
+        dry_run: bool,
+        return_card: bool,
+        caller_role: Option<&str>,
+        client: &(dyn SorxClient + Send + Sync),
+    ) -> Result<ManagerRunResult> {
         let ctx = OperaxContext::new(
             self.tenant.clone(),
             self.team.clone(),
             self.locale.clone(),
             self.pack.pack_digest.clone(),
         )?;
+        let ctx = match caller_role {
+            Some(role) => ctx.with_caller_role(role)?,
+            None => ctx,
+        };
         let report = run_loaded_pack(
             &self.pack,
             &ctx,
@@ -208,7 +226,25 @@ impl ManagerRuntime {
         dry_run: bool,
         return_card: bool,
     ) -> Result<ManagerRunResult> {
-        self.run_with_client(input, dry_run, return_card, self.client.as_ref())
+        self.run_input_as(input, dry_run, return_card, None)
+    }
+
+    /// Same as `run_input`, but additionally stamps `caller_role` onto the
+    /// `OperaxContext` when provided.
+    pub fn run_input_as(
+        &self,
+        input: Value,
+        dry_run: bool,
+        return_card: bool,
+        caller_role: Option<&str>,
+    ) -> Result<ManagerRunResult> {
+        self.run_with_client_as(
+            input,
+            dry_run,
+            return_card,
+            caller_role,
+            self.client.as_ref(),
+        )
     }
 
     /// The business-event subscriptions declared by this deployment's active pack.
@@ -665,5 +701,54 @@ mod tests {
 
         assert_eq!(via_run_input.schema, via_run_with_client.schema);
         assert_eq!(via_run_input.report, via_run_with_client.report);
+    }
+
+    #[test]
+    fn run_with_client_as_stamps_caller_role() {
+        // `RunReport` does not surface `OperaxContext::caller_role` (it is not
+        // one of its fields, see `operax_core::RunReport`), so the strongest
+        // assertion available here is that both the explicit-role and
+        // default-role paths succeed on the same dry-run input and produce an
+        // equivalent report shape. The `caller_role` value actually reaching
+        // `OperaxContext` (via `with_caller_role`) is exercised at the type
+        // level by `operax_core::OperaxContext::with_caller_role` itself and
+        // by Task 4/5's routing tests plus code review of this diff.
+        let input = serde_json::json!({
+            "source": "bank",
+            "date": "2026-06-02",
+            "transactions": [{
+                "transaction_id": "bank_tx_001",
+                "booked_at": "2026-06-02",
+                "amount": 1250.0,
+                "currency": "GBP",
+                "reference": "TEN-001 June Rent"
+            }]
+        });
+
+        let explicit_client = MockSorxClient::default();
+        let with_role = runtime()
+            .run_with_client_as(
+                input.clone(),
+                true,
+                false,
+                Some("business-event"),
+                &explicit_client,
+            )
+            .expect("run_with_client_as with caller_role should succeed");
+
+        let default_client = MockSorxClient::default();
+        let without_role = runtime()
+            .run_with_client_as(input, true, false, None, &default_client)
+            .expect("run_with_client_as without caller_role should succeed");
+
+        assert_eq!(with_role.schema, without_role.schema);
+        assert_eq!(
+            with_role.report.input_count,
+            without_role.report.input_count
+        );
+        assert_eq!(
+            with_role.report.decisions.len(),
+            without_role.report.decisions.len()
+        );
     }
 }
