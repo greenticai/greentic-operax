@@ -106,6 +106,7 @@ mod tests {
                 active: DeploymentVersion {
                     version: 2,
                     gtpack_path: PathBuf::from("/tmp/p.gtpack"),
+                    source_ref: None,
                     pack_digest: "sha256:z".into(),
                     deployed_at_unix: 42,
                 },

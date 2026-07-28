@@ -34,7 +34,10 @@ impl HttpReply {
 #[derive(Deserialize)]
 struct DeployBody {
     id: String,
-    gtpack_path: PathBuf,
+    #[serde(default)]
+    gtpack_path: Option<PathBuf>,
+    #[serde(default)]
+    reference: Option<String>,
     tenant: String,
     #[serde(default)]
     team: Option<String>,
@@ -71,6 +74,7 @@ fn deploy_error_reply(err: DeployError) -> HttpReply {
             HttpReply::error(404, "OPERAX_DEPLOYMENT_NOT_FOUND", "deployment not found")
         }
         DeployError::PackLoad(m) => HttpReply::error(422, "OPERAX_PACK_LOAD_FAILED", m),
+        DeployError::Fetch(m) => HttpReply::error(422, "OPERAX_PACK_FETCH_FAILED", m),
         DeployError::DeploymentFailed => HttpReply::error(
             409,
             "OPERAX_DEPLOYMENT_FAILED",
@@ -118,6 +122,7 @@ pub fn handle_deployment_request(
                 let spec = DeploySpec {
                     id: b.id,
                     gtpack_path: b.gtpack_path,
+                    reference: b.reference,
                     tenant: b.tenant,
                     team: b.team,
                     locale: b.locale,

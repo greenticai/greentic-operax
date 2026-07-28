@@ -94,7 +94,8 @@ fn env_scoped_routing() {
     manager
         .deploy(DeploySpec {
             id: "recon-prod".into(),
-            gtpack_path: handoff.into(),
+            gtpack_path: Some(handoff.into()),
+            reference: None,
             tenant: "demo".into(),
             team: Some("property-ops".into()),
             locale: None,
