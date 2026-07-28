@@ -401,7 +401,8 @@ impl DeploymentManager {
     pub fn upgrade(
         &self,
         id: &str,
-        gtpack_path: PathBuf,
+        gtpack_path: Option<PathBuf>,
+        reference: Option<String>,
     ) -> Result<DeploymentSummary, DeployError> {
         let mut slots = self
             .slots
@@ -410,8 +411,10 @@ impl DeploymentManager {
         if !slots.contains_key(id) {
             return Err(DeployError::NotFound);
         }
-        // Load the NEW pack first; on failure the old version stays active.
-        let pack = operax_pack_loader::load_operational_pack(&gtpack_path)
+        // Resolve the effective path (fetch by reference, or use the bare path)
+        // and load the NEW pack first; on failure the old version stays active.
+        let local = self.resolve_effective_path(reference.as_deref(), gtpack_path)?;
+        let pack = operax_pack_loader::load_operational_pack(&local)
             .map_err(|e| DeployError::PackLoad(e.to_string()))?;
         let digest = pack.pack_digest.clone();
 
@@ -435,10 +438,8 @@ impl DeploymentManager {
         let next_version = slot.record.active.version + 1;
         let new_active = DeploymentVersion {
             version: next_version,
-            gtpack_path,
-            // `upgrade` remains path-only for this slice (deploy-by-ref is
-            // the headline change; see task-3 report for rationale).
-            source_ref: None,
+            gtpack_path: local,
+            source_ref: reference,
             pack_digest: digest,
             deployed_at_unix: now_unix(),
         };
@@ -704,6 +705,15 @@ mod tests {
         repo_examples().join("tenancy/handoff")
     }
 
+    /// The directory holding the fixture pack, for building a `file://` dir
+    /// reference. `fixture_gtpack()` already IS that directory (an
+    /// unpacked handoff directory, not a single-file `.gtpack`), so this is
+    /// the same path — mirrors the dir-ref trick used by
+    /// `deploy_with_file_reference_records_source_ref` below.
+    fn fixture_gtpack_dir() -> PathBuf {
+        fixture_gtpack()
+    }
+
     fn deploy_spec(id: &str) -> DeploySpec {
         DeploySpec {
             id: id.to_string(),
@@ -716,6 +726,14 @@ mod tests {
             sor: None,
             environment: None,
         }
+    }
+
+    /// A manager with one deployment already at version 1 (deployed by bare
+    /// path), ready for `upgrade` tests to act on.
+    fn ready_manager_with_one(id: &str) -> DeploymentManager {
+        let mgr = test_manager();
+        mgr.deploy(deploy_spec(id)).expect("seed deploy");
+        mgr
     }
 
     #[test]
@@ -751,7 +769,9 @@ mod tests {
     fn upgrade_bumps_version_and_pushes_history() {
         let mgr = test_manager();
         mgr.deploy(deploy_spec("up")).expect("deploy");
-        let summary = mgr.upgrade("up", fixture_gtpack()).expect("upgrade");
+        let summary = mgr
+            .upgrade("up", Some(fixture_gtpack()), None)
+            .expect("upgrade");
         assert_eq!(summary.active_version, 2);
         let detail = mgr.get("up").expect("exists");
         assert_eq!(detail.record.active.version, 2);
@@ -764,7 +784,11 @@ mod tests {
         let mgr = test_manager();
         mgr.deploy(deploy_spec("keep")).expect("deploy");
         let err = mgr
-            .upgrade("keep", std::path::PathBuf::from("/nonexistent/x.gtpack"))
+            .upgrade(
+                "keep",
+                Some(std::path::PathBuf::from("/nonexistent/x.gtpack")),
+                None,
+            )
             .unwrap_err();
         assert!(matches!(err, DeployError::PackLoad(_)));
         let detail = mgr.get("keep").expect("still there");
@@ -775,8 +799,30 @@ mod tests {
     #[test]
     fn upgrade_unknown_id_is_not_found() {
         let mgr = test_manager();
-        let err = mgr.upgrade("ghost", fixture_gtpack()).unwrap_err();
+        let err = mgr
+            .upgrade("ghost", Some(fixture_gtpack()), None)
+            .unwrap_err();
         assert!(matches!(err, DeployError::NotFound));
+    }
+
+    #[test]
+    fn upgrade_by_reference_records_source_ref() {
+        let mgr = ready_manager_with_one("byref");
+        let dir = fixture_gtpack_dir();
+        let reference = format!("file://{}", dir.display());
+        let summary = mgr
+            .upgrade("byref", None, Some(reference.clone()))
+            .expect("upgrade by reference");
+        assert_eq!(summary.active_version, 2);
+        let detail = mgr.get("byref").expect("deployment present");
+        assert_eq!(detail.record.active.source_ref, Some(reference));
+    }
+
+    #[test]
+    fn upgrade_with_neither_path_nor_ref_is_bad_request() {
+        let mgr = ready_manager_with_one("nada");
+        let err = mgr.upgrade("nada", None, None).unwrap_err();
+        assert!(matches!(err, DeployError::BadRequest(_)));
     }
 
     #[test]
@@ -784,7 +830,8 @@ mod tests {
         let mgr = test_manager();
         mgr.deploy(deploy_spec("cap")).expect("deploy"); // v1
         for _ in 0..(HISTORY_CAP + 2) {
-            mgr.upgrade("cap", fixture_gtpack()).expect("upgrade");
+            mgr.upgrade("cap", Some(fixture_gtpack()), None)
+                .expect("upgrade");
         }
         let detail = mgr.get("cap").expect("exists");
         assert_eq!(detail.record.history.len(), HISTORY_CAP);
