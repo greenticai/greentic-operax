@@ -7,6 +7,8 @@ use std::collections::BTreeMap;
 use std::fs;
 use std::path::Path;
 
+pub mod fetch;
+
 pub fn load_operational_pack(path: impl AsRef<Path>) -> Result<OperationalPack> {
     let path = path.as_ref();
     if path.is_dir() {

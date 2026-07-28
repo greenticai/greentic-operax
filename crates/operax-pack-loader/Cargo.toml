@@ -17,6 +17,9 @@ serde.workspace = true
 serde_json.workspace = true
 serde_yaml.workspace = true
 sha2.workspace = true
+ureq = "3"
+oci-distribution = { version = "0.11", default-features = false, features = ["rustls-tls"] }
+tokio = { version = "1", features = ["rt"] }
 
 [dev-dependencies]
 tempfile.workspace = true

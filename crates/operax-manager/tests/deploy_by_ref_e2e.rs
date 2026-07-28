@@ -1,8 +1,9 @@
-//! End-to-end integration test: deploys a real tenancy pack as a static
-//! deployment with an `environment` scope and drives
-//! `DeploymentManager::route_event` directly (no HTTP server, no NATS
-//! broker) to confirm business-event routing only matches deployments whose
-//! `environment` equals the routed event's environment.
+//! End-to-end integration test: deploys a real tenancy pack purely by
+//! `file://` directory reference (no `gtpack_path`) and drives
+//! `DeploymentManager::deploy`/`get`/`run` directly (no HTTP server, no NATS
+//! broker) to confirm the reference resolves through `fetch_pack_ref` into
+//! the handoff directory, the resulting deployment is `Ready`, provenance is
+//! recorded on the active version, and the loaded pack actually runs.
 
 use std::sync::Arc;
 
@@ -10,7 +11,7 @@ use operax_manager::deployment::{DeploySpec, DeploymentManager, SorxClientBuilde
 use operax_manager::deployment_store::OperaxDeploymentStore;
 
 // No-op SorxClient stub; dry_run never reaches SoRX, so these bodies are
-// unreachable for this test's routing (dry_run=true throughout).
+// unreachable for this test's run (dry_run=true throughout).
 struct StubClient;
 impl operax_sorx_http::SorxClient for StubClient {
     fn health(
@@ -67,7 +68,7 @@ fn unique_registry_path() -> std::path::PathBuf {
     let n = COUNTER.fetch_add(1, Ordering::Relaxed);
     let mut p = std::env::temp_dir();
     p.push(format!(
-        "operax-env-routing-e2e-{}-{}.json",
+        "operax-deploy-by-ref-e2e-{}-{}.json",
         std::process::id(),
         n
     ));
@@ -76,7 +77,7 @@ fn unique_registry_path() -> std::path::PathBuf {
 }
 
 #[test]
-fn env_scoped_routing() {
+fn deploy_by_file_reference() {
     let builder: SorxClientBuilder = Box::new(|_url, _token| {
         Arc::new(StubClient) as Arc<dyn operax_sorx_http::SorxClient + Send + Sync>
     });
@@ -90,20 +91,37 @@ fn env_scoped_routing() {
     // (`crates/operax-manager`) that is `../../examples`.
     let examples = concat!(env!("CARGO_MANIFEST_DIR"), "/../../examples");
     let handoff = format!("{examples}/tenancy/handoff");
+    let reference = format!("file://{handoff}");
 
-    manager
+    let summary = manager
         .deploy(DeploySpec {
-            id: "recon-prod".into(),
-            gtpack_path: Some(handoff.into()),
-            reference: None,
+            id: "byref".into(),
+            gtpack_path: None,
+            reference: Some(reference.clone()),
             tenant: "demo".into(),
             team: Some("property-ops".into()),
             locale: None,
             sorx_url: Some("http://127.0.0.1:8099".into()),
             sor: None,
-            environment: Some("prod".into()),
+            environment: None,
         })
-        .expect("deploy tenancy pack");
+        .expect("deploy by file:// reference");
+
+    assert!(
+        matches!(
+            summary.status,
+            operax_manager::deployment::DeploymentStatus::Ready
+        ),
+        "expected deployment to be Ready, got {:?}",
+        summary.status
+    );
+
+    let detail = manager.get("byref").expect("deployment registered");
+    assert_eq!(
+        detail.record.active.source_ref.as_deref(),
+        Some(reference.as_str()),
+        "active version should record the file:// reference as provenance"
+    );
 
     let input: serde_json::Value = serde_json::from_str(
         &std::fs::read_to_string(format!(
@@ -113,34 +131,11 @@ fn env_scoped_routing() {
     )
     .expect("parse tenancy input fixture");
 
-    let outcomes = manager.route_event(
-        "prod",
-        "demo",
-        "sorla.tenancy.payment-recorded",
-        input.clone(),
-        true,
-    );
+    let result = manager
+        .run("byref", input, true)
+        .expect("dry-run of the deployed pack");
     assert_eq!(
-        outcomes.len(),
-        1,
-        "expected exactly one matching deployment for the prod environment"
-    );
-    assert_eq!(outcomes[0].deployment_id, "recon-prod");
-    assert!(
-        outcomes[0].result.is_ok(),
-        "run should succeed: {:?}",
-        outcomes[0].result
-    );
-
-    let mismatched = manager.route_event(
-        "staging",
-        "demo",
-        "sorla.tenancy.payment-recorded",
-        input,
-        true,
-    );
-    assert!(
-        mismatched.is_empty(),
-        "deployment scoped to prod should not route staging events"
+        result.report.input_count, 3,
+        "the pack loaded via file:// reference should process the fixture rows"
     );
 }

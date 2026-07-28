@@ -5,7 +5,7 @@
 //! `presence` are unaffected.
 
 use serde::{Deserialize, Serialize};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 /// The whole persisted registry file.
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -39,7 +39,16 @@ pub struct DeploymentRecord {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DeploymentVersion {
     pub version: u64,
+    /// The RESOLVED local path (directory or `.gtpack` file) that was
+    /// actually loaded, whether it came from a bare `gtpack_path` or was
+    /// fetched from `reference` into the manager's pack cache.
     pub gtpack_path: PathBuf,
+    /// The original pack reference (`file://`, `http(s)://`, `oci://`,
+    /// `repo://`, `store://`) that resolved to `gtpack_path`, when the
+    /// deployment/upgrade was requested by reference rather than by a bare
+    /// local path.
+    #[serde(default)]
+    pub source_ref: Option<String>,
     pub pack_digest: String,
     pub deployed_at_unix: u64,
 }
@@ -86,11 +95,26 @@ pub struct DeploymentManager {
     token: Option<String>,
     client_builder: SorxClientBuilder,
     resolver: Option<Arc<dyn SorxResolver>>,
+    /// Directory `operax_pack_loader::fetch::fetch_pack_ref` fetches/caches
+    /// pack references into.
+    /// Derived from the registry store's path (its parent joined with
+    /// `packs/`), falling back to `~/.greentic/operax/packs` when the store
+    /// path has no parent (e.g. a bare filename).
+    pack_cache_dir: PathBuf,
 }
 
 pub struct DeploySpec {
     pub id: String,
-    pub gtpack_path: PathBuf,
+    /// A local path to a `.gtpack` file or an already-unpacked handoff
+    /// directory. Mutually optional with `reference`: at least one must be
+    /// set (enforced in `deploy`); `reference` takes precedence if both are
+    /// given.
+    pub gtpack_path: Option<PathBuf>,
+    /// A pack reference (`file://`, bare path, `http(s)://`, `oci://`,
+    /// `repo://`, `store://`) resolved via
+    /// `operax_pack_loader::fetch::fetch_pack_ref` before load. See
+    /// `gtpack_path` for the mutual-optionality contract.
+    pub reference: Option<String>,
     pub tenant: String,
     pub team: Option<String>,
     pub locale: Option<String>,
@@ -122,6 +146,8 @@ pub enum DeployError {
     AlreadyExists,
     NotFound,
     PackLoad(String),
+    /// Resolving/fetching a `reference` into the local pack cache failed.
+    Fetch(String),
     Persist(String),
     Internal(String),
     /// The slot exists but has no runnable runtime (e.g. its pack failed to
@@ -133,6 +159,22 @@ pub enum DeployError {
     Unresolved(String),
     /// `sor` was requested but no `SorxResolver` is configured.
     DiscoveryUnavailable,
+}
+
+/// Fallback pack cache dir used when the registry store's path has no usable
+/// parent directory (e.g. a bare filename).
+fn default_pack_cache_dir() -> PathBuf {
+    let home = std::env::var("HOME").unwrap_or_else(|_| ".".to_string());
+    PathBuf::from(home).join(".greentic/operax/packs")
+}
+
+/// Derives the pack cache dir from a registry store path: `<parent>/packs`,
+/// or `default_pack_cache_dir()` when the store path has no parent.
+fn pack_cache_dir_for(store_path: &Path) -> PathBuf {
+    match store_path.parent() {
+        Some(parent) if !parent.as_os_str().is_empty() => parent.join("packs"),
+        _ => default_pack_cache_dir(),
+    }
 }
 
 fn now_unix() -> u64 {
@@ -148,12 +190,14 @@ impl DeploymentManager {
         token: Option<String>,
         client_builder: SorxClientBuilder,
     ) -> Self {
+        let pack_cache_dir = pack_cache_dir_for(store.path());
         Self {
             slots: RwLock::new(HashMap::new()),
             store,
             token,
             client_builder,
             resolver: None,
+            pack_cache_dir,
         }
     }
 
@@ -250,8 +294,20 @@ impl DeploymentManager {
         if slots.contains_key(&spec.id) {
             return Err(DeployError::AlreadyExists);
         }
-        // Load the pack first so a bad path fails BEFORE we mutate anything.
-        let pack = operax_pack_loader::load_operational_pack(&spec.gtpack_path)
+        // Resolve the effective local path (fetch by reference, or use the
+        // bare path as-is), then load the pack first so a bad path/reference
+        // fails BEFORE we mutate anything.
+        let local = match (spec.reference.as_deref(), spec.gtpack_path.clone()) {
+            (Some(r), _) => operax_pack_loader::fetch::fetch_pack_ref(r, &self.pack_cache_dir)
+                .map_err(|e| DeployError::Fetch(e.to_string()))?,
+            (None, Some(p)) => p,
+            (None, None) => {
+                return Err(DeployError::BadRequest(
+                    "deploy requires gtpack_path or reference".into(),
+                ));
+            }
+        };
+        let pack = operax_pack_loader::load_operational_pack(&local)
             .map_err(|e| DeployError::PackLoad(e.to_string()))?;
         let digest = pack.pack_digest.clone();
         let frozen_url = spec
@@ -278,7 +334,8 @@ impl DeploymentManager {
             environment: spec.environment,
             active: DeploymentVersion {
                 version: 1,
-                gtpack_path: spec.gtpack_path,
+                gtpack_path: local,
+                source_ref: spec.reference,
                 pack_digest: digest,
                 deployed_at_unix: now_unix(),
             },
@@ -368,6 +425,9 @@ impl DeploymentManager {
         let new_active = DeploymentVersion {
             version: next_version,
             gtpack_path,
+            // `upgrade` remains path-only for this slice (deploy-by-ref is
+            // the headline change; see task-3 report for rationale).
+            source_ref: None,
             pack_digest: digest,
             deployed_at_unix: now_unix(),
         };
@@ -526,6 +586,7 @@ mod tests {
         DeploymentVersion {
             version: v,
             gtpack_path: PathBuf::from("/tmp/x.gtpack"),
+            source_ref: None,
             pack_digest: "sha256:abc".to_string(),
             deployed_at_unix: 1_700_000_000,
         }
@@ -635,7 +696,8 @@ mod tests {
     fn deploy_spec(id: &str) -> DeploySpec {
         DeploySpec {
             id: id.to_string(),
-            gtpack_path: fixture_gtpack(),
+            gtpack_path: Some(fixture_gtpack()),
+            reference: None,
             tenant: "demo".to_string(),
             team: Some("property-ops".to_string()),
             locale: None,
@@ -668,7 +730,7 @@ mod tests {
     fn deploy_bad_path_fails_without_registering() {
         let mgr = test_manager();
         let mut spec = deploy_spec("bad");
-        spec.gtpack_path = PathBuf::from("/nonexistent/x.gtpack");
+        spec.gtpack_path = Some(PathBuf::from("/nonexistent/x.gtpack"));
         let err = mgr.deploy(spec).unwrap_err();
         assert!(matches!(err, DeployError::PackLoad(_)));
         assert!(mgr.get("bad").is_none());
@@ -739,6 +801,7 @@ mod tests {
             active: DeploymentVersion {
                 version: 1,
                 gtpack_path: fixture_gtpack(),
+                source_ref: None,
                 pack_digest: "sha256:g".into(),
                 deployed_at_unix: 1,
             },
@@ -755,6 +818,7 @@ mod tests {
             active: DeploymentVersion {
                 version: 1,
                 gtpack_path: std::path::PathBuf::from("/nonexistent/x.gtpack"),
+                source_ref: None,
                 pack_digest: "sha256:b".into(),
                 deployed_at_unix: 1,
             },
@@ -965,5 +1029,33 @@ mod tests {
         mgr.deploy(spec).expect("deploy");
         let detail = mgr.get("envdep").expect("exists");
         assert_eq!(detail.record.environment.as_deref(), Some("prod"));
+    }
+
+    #[test]
+    fn deploy_requires_path_or_reference() {
+        let mgr = test_manager();
+        let mut spec = deploy_spec("noneither");
+        spec.gtpack_path = None;
+        spec.reference = None;
+        assert!(matches!(
+            mgr.deploy(spec).unwrap_err(),
+            DeployError::BadRequest(_)
+        ));
+    }
+
+    #[test]
+    fn deploy_with_file_reference_records_source_ref() {
+        let mgr = test_manager();
+        let mut spec = deploy_spec("byref");
+        let dir = repo_examples().join("tenancy/handoff"); // a directory ref -> passthrough
+        spec.gtpack_path = None;
+        spec.reference = Some(format!("file://{}", dir.display()));
+        let summary = mgr.deploy(spec).expect("deploy by ref");
+        assert!(matches!(summary.status, DeploymentStatus::Ready));
+        let detail = mgr.get("byref").expect("exists");
+        assert_eq!(
+            detail.record.active.source_ref.as_deref(),
+            Some(&*format!("file://{}", dir.display()))
+        );
     }
 }
