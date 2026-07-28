@@ -111,7 +111,13 @@ fn route_event_runs_matching_deployment() {
     )
     .expect("parse tenancy input fixture");
 
-    let outcomes = manager.route_event("demo", "sorla.tenancy.payment-recorded", input, true);
+    let outcomes = manager.route_event(
+        "prod",
+        "demo",
+        "sorla.tenancy.payment-recorded",
+        input,
+        true,
+    );
     assert_eq!(
         outcomes.len(),
         1,
@@ -124,6 +130,12 @@ fn route_event_runs_matching_deployment() {
         outcomes[0].result
     );
 
-    let empty = manager.route_event("demo", "sorla.tenancy.nope", serde_json::json!({}), true);
+    let empty = manager.route_event(
+        "prod",
+        "demo",
+        "sorla.tenancy.nope",
+        serde_json::json!({}),
+        true,
+    );
     assert!(empty.is_empty(), "non-matching topic should route nowhere");
 }
