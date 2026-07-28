@@ -60,14 +60,23 @@ greentic-operax serve \
   "tenant": "acme",
   "team": "property-ops",
   "locale": "en",
-  "sorx_url": "http://localhost:8088"
+  "sorx_url": "http://localhost:8088",
+  "environment": "prod"
 }
 ```
 
-`team`, `locale`, `sorx_url`, and `sor` are optional; `id`, `gtpack_path`, and
-`tenant` are required. **At least one of `sorx_url` / `sor` must be set** —
-deploying with neither is rejected. The deployment's `id` is chosen by the
-caller and is stable across upgrades.
+`team`, `locale`, `sorx_url`, `sor`, and `environment` are optional; `id`,
+`gtpack_path`, and `tenant` are required. **At least one of `sorx_url` / `sor`
+must be set** — deploying with neither is rejected. The deployment's `id` is
+chosen by the caller and is stable across upgrades.
+
+`environment` is a free-form label (e.g. `"prod"`, `"staging"`) scoping this
+deployment to a single environment. Omitted (the default) means a wildcard:
+the deployment resolves discovery and receives routed events regardless of
+environment — the unchanged slice-1/2/3 behavior. Set, it restricts both
+discover-mode resolution and business-event routing to that environment (see
+below); it has no effect on static (`sorx_url`-only) deployments' `run`
+behavior.
 
 ### Static vs. discover mode
 
@@ -80,7 +89,13 @@ A deployment resolves its SoRX endpoint one of two ways, per deployment:
   freshest reachable announcement. Discover mode is evaluated per run, not
   cached at deploy time, so a newly-announced SoRX instance is picked up
   without redeploying. If `sorx_url` is also supplied alongside `sor`, it is
-  ignored for `run` — `sor` takes priority.
+  ignored for `run` — `sor` takes priority. If the deployment also sets
+  `environment`, resolution is further scoped: only a presence announcement
+  whose own `environment` matches is eligible, so a `prod`-scoped deployment
+  will never resolve a `staging` instance sharing the same `(tenant, sor)`
+  even if it is the freshest reachable one. A deployment with no
+  `environment` set (the default) matches any announced environment,
+  unchanged from before.
 
 Discover mode requires the daemon to be built with the `events` feature and
 started with `OPERAX_PRESENCE_NATS_URL` set: the presence subscriber that
@@ -106,20 +121,20 @@ with the errors below instead of falling back to anything.
 | `422` | `OPERAX_DISCOVERY_UNAVAILABLE` | Deploy request sets `sor` but the daemon has no resolver (built without `events`, or `OPERAX_PRESENCE_NATS_URL` unset). Also returned by `run` for an existing discover-mode deployment if the daemon no longer has an active resolver (e.g. restarted without `events`). |
 | `503` | `OPERAX_SORX_UNRESOLVED` | Run request against a discover-mode deployment, but the presence directory has no reachable SoRX announced for `(tenant, sor)` yet. |
 
-This slice resolves purely on `(tenant, sor)` and trusts the producer's
-`reachable` flag as announced. Environment discrimination (e.g. staging vs.
-production SoR instances) and presence health-probing (verifying reachability
-instead of trusting the announcement) are planned follow-ups, not implemented
-here.
+Resolution filters by `(tenant, sor)` plus the deployment's `environment` (see
+above) and trusts the producer's `reachable` flag as announced.
+Presence health-probing (verifying reachability instead of trusting the
+announcement) remains a planned follow-up, not implemented here.
 
 ### Business-event routing
 
 When the daemon is built with the `events` feature **and** started with
 `OPERAX_EVENTS_NATS_URL` set, `operax serve` also runs an in-process business-event
 router: it subscribes to `greentic.events.>` (all tenants, not subject-scoped) and,
-for each decoded event, routes it to **every** deployment whose pack declares a
-matching `consumes` subscription for the matching tenant, running each one for real
-(`dry_run=false`).
+for each decoded event, routes it to **every** `Ready` deployment whose pack declares a
+matching `consumes` subscription for the event's tenant and whose `environment` is
+either unset (wildcard) or equal to the event's own environment, running each one for
+real (`dry_run=false`).
 
 ```bash
 cargo build -p greentic-operax --features events
@@ -131,23 +146,25 @@ OPERAX_EVENTS_NATS_URL=nats://localhost:4222 \
 A deployment's pack declares what it subscribes to via `consumes` entries in its
 `operala.yaml`, each with a `capability` cap-URI in the form
 `cap://greentic/events/<domain>/[vN/]<name>` (the version segment is optional). The
-router matches an incoming event's `topic` against every `Ready` deployment's
-declared subscriptions for the event's tenant; a match triggers a run of that
+router matches an incoming event's `topic` against each eligible deployment's declared
+subscriptions (tenant- and environment-scoped as above); a match triggers a run of that
 deployment with the event payload as input.
 
 Without `OPERAX_EVENTS_NATS_URL` set, or when the daemon was built without `events`,
 event routing is inert: the daemon logs that it's disabled and starts normally
 otherwise.
 
-This slice fans events out synchronously and does not yet stamp routed runs
-distinctly from manual ones. Concretely, out of scope here:
+A run triggered by the router is stamped `caller_role: "business-event"` — the same
+value the separate `operax events subscribe` CLI command stamps on its own runs —
+distinguishing it from a manually-triggered `POST .../run`, which defaults to
+`caller_role: "service"`. When an event matches multiple deployments, the router runs
+them concurrently rather than one after another, and each is logged (`ok`/`failed`)
+independently as it completes.
 
-- **`caller_role` is not stamped as a business event** — a run triggered by the
-  router looks identical to a manually-triggered run to audit logging and any
-  caller-role-based policy, unlike the separate `operax events subscribe` CLI
-  command (which does stamp `caller_role: "business-event"` on its runs).
-- **No environment discrimination** — matching is scoped by tenant only, so an
-  event is routed to every matching deployment for that tenant regardless of
-  environment (e.g. staging vs. production).
-- **No concurrent fan-out** — when an event matches multiple deployments, the
-  daemon runs them sequentially, one after another, not in parallel.
+### NATS reconnect
+
+The daemon's NATS subscribers — the presence subscriber backing discover mode, the
+business-event router above, and the separate `operax events subscribe` CLI command —
+no longer exit when the underlying NATS connection drops or its subscription stream
+ends. Each reconnects automatically with capped exponential backoff, starting at 1s and
+doubling up to a 30s cap, retrying forever rather than requiring an operator restart.
