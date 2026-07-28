@@ -6,7 +6,11 @@
 //! Scheme classification is split into a pure function ([`map_scheme`]) so it
 //! can be unit-tested without mutating process environment variables.
 
+use oci_distribution::client::ImageLayer;
+use oci_distribution::secrets::RegistryAuth;
+use oci_distribution::{Client, Reference};
 use operax_core::{OperaxError, Result, sha256_digest};
+use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -161,17 +165,138 @@ fn write_to_cache(cache_dir: &Path, bytes: &[u8]) -> Result<PathBuf> {
     Ok(dest)
 }
 
-/// Pulls an OCI image reference and caches the resulting pack.
+// Pack layer media types, in the exact order used by
+// `greentic-distributor-client`'s `oci_packs` module, which this list
+// mirrors verbatim (see `greentic-distributor-client/src/oci_packs.rs`).
+const PACK_LAYER_MEDIA_TYPE: &str = "application/vnd.greentic.pack+json";
+const PACK_LAYER_MEDIA_TYPE_ZIP: &str = "application/vnd.greentic.gtpack.v1+zip";
+const PACK_LAYER_MEDIA_TYPE_ZIP_LEGACY: &str = "application/vnd.greentic.gtpack+zip";
+const PACK_LAYER_MEDIA_TYPE_PACK_ZIP: &str = "application/vnd.greentic.pack+zip";
+const PACK_LAYER_MEDIA_TYPE_GTPACK_TAR: &str = "application/vnd.greentic.gtpack.layer.v1+tar";
+const PACK_LAYER_MEDIA_TYPE_MARKDOWN: &str = "text/markdown";
+const PACK_LAYER_MEDIA_TYPE_OCTET_STREAM: &str = "application/octet-stream";
+const PACK_LAYER_MEDIA_TYPE_JSON: &str = "application/json";
+const PACK_LAYER_MEDIA_TYPE_TAR: &str = "application/vnd.oci.image.layer.v1.tar";
+const PACK_LAYER_MEDIA_TYPE_TAR_GZIP: &str = "application/vnd.oci.image.layer.v1.tar+gzip";
+const PACK_LAYER_MEDIA_TYPE_TAR_ZSTD: &str = "application/vnd.oci.image.layer.v1.tar+zstd";
+
+/// Media types accepted when pulling a pack layer from an OCI registry.
+/// Mirrors `default_pack_layer_media_types()` in
+/// `greentic-distributor-client/src/oci_packs.rs`.
+fn default_pack_layer_media_types() -> Vec<&'static str> {
+    vec![
+        PACK_LAYER_MEDIA_TYPE,
+        PACK_LAYER_MEDIA_TYPE_ZIP,
+        PACK_LAYER_MEDIA_TYPE_ZIP_LEGACY,
+        PACK_LAYER_MEDIA_TYPE_PACK_ZIP,
+        PACK_LAYER_MEDIA_TYPE_GTPACK_TAR,
+        PACK_LAYER_MEDIA_TYPE_MARKDOWN,
+        PACK_LAYER_MEDIA_TYPE_OCTET_STREAM,
+        PACK_LAYER_MEDIA_TYPE_JSON,
+        PACK_LAYER_MEDIA_TYPE_TAR,
+        PACK_LAYER_MEDIA_TYPE_TAR_GZIP,
+        PACK_LAYER_MEDIA_TYPE_TAR_ZSTD,
+    ]
+}
+
+/// Media types preferred, in rank order, when more than one accepted layer
+/// is present. Mirrors `default_preferred_pack_layer_media_types()` in
+/// `greentic-distributor-client/src/oci_packs.rs`.
+fn default_preferred_pack_layer_media_types() -> Vec<&'static str> {
+    vec![
+        PACK_LAYER_MEDIA_TYPE,
+        PACK_LAYER_MEDIA_TYPE_ZIP,
+        PACK_LAYER_MEDIA_TYPE_ZIP_LEGACY,
+        PACK_LAYER_MEDIA_TYPE_PACK_ZIP,
+        PACK_LAYER_MEDIA_TYPE_MARKDOWN,
+    ]
+}
+
+/// Picks the layer whose media type has the lowest index in
+/// `preferred_types`; falls back to the first layer when none of the layers'
+/// media types appear in `preferred_types`. Mirrors the rank logic of
+/// `select_layer` in `greentic-distributor-client/src/oci_packs.rs`, adapted
+/// to `oci_distribution::client::ImageLayer`.
+fn select_layer<'a>(
+    layers: &'a [ImageLayer],
+    preferred_types: &[&str],
+    reference: &str,
+) -> Result<&'a ImageLayer> {
+    if layers.is_empty() {
+        return Err(OperaxError::new(
+            "pack_fetch_failed",
+            format!("no layers returned for `{reference}`"),
+        ));
+    }
+    let preferred_positions: HashMap<&str, usize> = preferred_types
+        .iter()
+        .enumerate()
+        .map(|(idx, media_type)| (*media_type, idx))
+        .collect();
+    let mut best_idx = 0usize;
+    let mut best_rank = usize::MAX;
+    for (idx, layer) in layers.iter().enumerate() {
+        if let Some(&rank) = preferred_positions.get(layer.media_type.as_str())
+            && rank < best_rank
+        {
+            best_idx = idx;
+            best_rank = rank;
+            if rank == 0 {
+                break;
+            }
+        }
+    }
+    Ok(&layers[best_idx])
+}
+
+/// Pulls the chosen pack layer's bytes for `image_ref` anonymously over
+/// HTTPS. Mirrors `DefaultRegistryClient::pull` in
+/// `greentic-distributor-client/src/oci_packs.rs` (minus the manifest-type
+/// expansion step, which only matters for the distributor's broader
+/// artifact-manifest support).
+async fn pull_oci_layer_bytes(image_ref: &str) -> Result<Vec<u8>> {
+    let reference: Reference = image_ref.parse().map_err(|err| {
+        OperaxError::new(
+            "pack_fetch_failed",
+            format!("invalid OCI reference `{image_ref}`: {err}"),
+        )
+    })?;
+
+    let client = Client::new(Default::default());
+    let accepted = default_pack_layer_media_types();
+    let image = client
+        .pull(&reference, &RegistryAuth::Anonymous, accepted)
+        .await
+        .map_err(|err| {
+            OperaxError::new(
+                "pack_fetch_failed",
+                format!("failed to pull `{image_ref}`: {err}"),
+            )
+        })?;
+
+    let preferred = default_preferred_pack_layer_media_types();
+    let chosen = select_layer(&image.layers, &preferred, image_ref)?;
+    Ok(chosen.data.clone())
+}
+
+/// Pulls an OCI image reference and caches the resulting pack layer.
 ///
-/// Placeholder for Task 1: OCI fetch support lands in Task 2, which replaces
-/// this body with a real `oci-distribution` pull. Returning an honest error
-/// here (rather than a fake success) keeps `fetch_pack_ref` truthful about
-/// what it currently supports.
-fn pull_oci_blob(_image_ref: &str, _cache_dir: &Path) -> Result<PathBuf> {
-    Err(OperaxError::new(
-        "oci_fetch_unavailable",
-        "OCI fetch lands in Task 2",
-    ))
+/// Runs the async `oci-distribution` pull on a dedicated current-thread
+/// Tokio runtime (this crate otherwise stays synchronous), selects the
+/// preferred pack layer, and writes its bytes to `cache_dir` via the same
+/// content-addressed cache path used by the file/http fetch paths.
+fn pull_oci_blob(image_ref: &str, cache_dir: &Path) -> Result<PathBuf> {
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .map_err(|err| {
+            OperaxError::new(
+                "pack_fetch_failed",
+                format!("failed to start OCI pull runtime: {err}"),
+            )
+        })?;
+    let data = runtime.block_on(pull_oci_layer_bytes(image_ref))?;
+    write_to_cache(cache_dir, &data)
 }
 
 #[cfg(test)]
