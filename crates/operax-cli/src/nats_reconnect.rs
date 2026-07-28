@@ -81,7 +81,7 @@ mod tests {
             let calls = calls_for_session.clone();
             async move {
                 let n = calls.fetch_add(1, Ordering::SeqCst);
-                if n % 2 == 0 {
+                if n.is_multiple_of(2) {
                     Ok(())
                 } else {
                     Err(anyhow::anyhow!("simulated session error"))
