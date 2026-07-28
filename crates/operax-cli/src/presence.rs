@@ -58,11 +58,22 @@ pub fn apply_presence(dir: &mut Directory, presence: SorxPresence, now: u64) {
     );
 }
 
-/// Resolve the freshest reachable SoRX `base_url` for a (tenant, sor) pair.
-/// Pure: no I/O.
-pub fn resolve_endpoint(dir: &Directory, tenant: &str, sor: &str) -> Option<String> {
+/// Resolve the freshest reachable SoRX `base_url` for a (tenant, sor) pair,
+/// optionally scoped to a specific `environment`. `env: None` is a wildcard
+/// that matches any environment. Pure: no I/O.
+pub fn resolve_endpoint(
+    dir: &Directory,
+    env: Option<&str>,
+    tenant: &str,
+    sor: &str,
+) -> Option<String> {
     dir.values()
-        .filter(|e| e.presence.reachable && e.presence.tenant == tenant && e.presence.sor == sor)
+        .filter(|e| {
+            e.presence.reachable
+                && e.presence.tenant == tenant
+                && e.presence.sor == sor
+                && env.is_none_or(|e2| e.presence.environment == e2)
+        })
         .max_by_key(|e| e.last_seen)
         .map(|e| e.presence.base_url.clone())
 }
@@ -96,9 +107,9 @@ pub struct PresenceResolver {
 }
 
 impl operax_manager::deployment::SorxResolver for PresenceResolver {
-    fn resolve(&self, tenant: &str, sor: &str) -> Option<String> {
+    fn resolve(&self, env: Option<&str>, tenant: &str, sor: &str) -> Option<String> {
         let dir = self.directory.read().ok()?;
-        resolve_endpoint(&dir, tenant, sor)
+        resolve_endpoint(&dir, env, tenant, sor)
     }
 }
 
@@ -270,11 +281,57 @@ mod tests {
             40,
         );
         assert_eq!(
-            resolve_endpoint(&dir, "t1", "orders").as_deref(),
+            resolve_endpoint(&dir, None, "t1", "orders").as_deref(),
             Some("http://new")
         );
-        assert_eq!(resolve_endpoint(&dir, "t1", "unknown"), None);
-        assert_eq!(resolve_endpoint(&dir, "t2", "orders"), None);
+        assert_eq!(resolve_endpoint(&dir, None, "t1", "unknown"), None);
+        assert_eq!(resolve_endpoint(&dir, None, "t2", "orders"), None);
+    }
+
+    #[test]
+    fn resolve_filters_by_environment() {
+        fn pres_env(
+            instance: &str,
+            tenant: &str,
+            sor: &str,
+            url: &str,
+            environment: &str,
+            reachable: bool,
+        ) -> SorxPresence {
+            SorxPresence {
+                schema: "greentic.sorx.presence.v1".into(),
+                instance_id: instance.into(),
+                tenant: tenant.into(),
+                environment: environment.into(),
+                sor: sor.into(),
+                pack_version: "1.0.0".into(),
+                base_url: url.into(),
+                reachable,
+                offers: serde_json::Value::Null,
+                ts: "t".into(),
+            }
+        }
+        let mut dir = Directory::new();
+        // two reachable entries, same tenant+sor, different environment
+        apply_presence(
+            &mut dir,
+            pres_env("i1", "t1", "orders", "http://prod", "prod", true),
+            10,
+        );
+        apply_presence(
+            &mut dir,
+            pres_env("i2", "t1", "orders", "http://staging", "staging", true),
+            20,
+        );
+        assert_eq!(
+            resolve_endpoint(&dir, Some("prod"), "t1", "orders").as_deref(),
+            Some("http://prod")
+        );
+        // env: None -> wildcard, freshest wins
+        assert_eq!(
+            resolve_endpoint(&dir, None, "t1", "orders").as_deref(),
+            Some("http://staging")
+        );
     }
 
     #[test]
@@ -295,7 +352,7 @@ mod tests {
         }
         let guard = dir.read().unwrap();
         assert_eq!(
-            resolve_endpoint(&guard, "t1", "orders").as_deref(),
+            resolve_endpoint(&guard, None, "t1", "orders").as_deref(),
             Some("http://new")
         );
     }
@@ -315,7 +372,8 @@ mod tests {
         }
         let resolver = PresenceResolver { directory: dir };
         assert_eq!(
-            operax_manager::deployment::SorxResolver::resolve(&resolver, "t1", "orders").as_deref(),
+            operax_manager::deployment::SorxResolver::resolve(&resolver, None, "t1", "orders")
+                .as_deref(),
             Some("http://new")
         );
     }

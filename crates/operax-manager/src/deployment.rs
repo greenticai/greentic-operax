@@ -69,7 +69,7 @@ pub type SorxClientBuilder =
 /// `DeploymentManager` to discover SoRX endpoints dynamically instead of
 /// relying solely on the static `sorx_url` persisted on a `DeploymentRecord`.
 pub trait SorxResolver: Send + Sync {
-    fn resolve(&self, tenant: &str, sor: &str) -> Option<String>;
+    fn resolve(&self, env: Option<&str>, tenant: &str, sor: &str) -> Option<String>;
 }
 
 pub struct DeploymentSlot {
@@ -419,6 +419,7 @@ impl DeploymentManager {
         };
         let discover = slot.record.sor.clone();
         let tenant = slot.record.tenant.clone();
+        let record_environment = slot.record.environment.clone();
         // Drop the read lock before running so other deployments proceed.
         drop(slots);
 
@@ -428,9 +429,11 @@ impl DeploymentManager {
                     .resolver
                     .as_ref()
                     .ok_or(DeployError::DiscoveryUnavailable)?;
-                let url = resolver.resolve(&tenant, &sor).ok_or_else(|| {
-                    DeployError::Unresolved(format!("no reachable SoRX for {tenant}/{sor}"))
-                })?;
+                let url = resolver
+                    .resolve(record_environment.as_deref(), &tenant, &sor)
+                    .ok_or_else(|| {
+                        DeployError::Unresolved(format!("no reachable SoRX for {tenant}/{sor}"))
+                    })?;
                 let client = (self.client_builder)(&url, self.token.as_deref());
                 rt.run_with_client(input, dry_run, false, client.as_ref())
                     .map_err(|e| DeployError::Internal(e.to_string()))
@@ -856,7 +859,7 @@ mod tests {
     // Reused by later resolver-consuming slices (Task 4/5).
     struct StubResolver(Option<String>);
     impl SorxResolver for StubResolver {
-        fn resolve(&self, _t: &str, _s: &str) -> Option<String> {
+        fn resolve(&self, _env: Option<&str>, _t: &str, _s: &str) -> Option<String> {
             self.0.clone()
         }
     }
