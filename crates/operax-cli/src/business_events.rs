@@ -153,35 +153,36 @@ pub fn run_event_router(
                     continue;
                 }
             };
+            let event_env = env.tenant.env.as_str().to_string();
             let tenant = env.tenant.tenant.to_string();
             let topic = env.topic.clone();
             let payload = env.payload.clone();
-            let manager = manager.clone();
-            let route_topic = topic.clone();
-            let outcomes = match tokio::task::spawn_blocking(move || {
-                manager.route_event(&tenant, &route_topic, payload, false)
-            })
-            .await
-            {
-                Ok(outcomes) => outcomes,
-                Err(join_err) => {
-                    eprintln!("[operax serve] event route task failed to join: {join_err}");
-                    continue;
-                }
-            };
-            if outcomes.is_empty() {
+            let matched = manager.matching_deployments(&event_env, &tenant, &topic);
+            if matched.is_empty() {
                 eprintln!("[operax serve] event {topic} matched no deployments");
+                continue;
             }
-            for outcome in outcomes {
-                match &outcome.result {
-                    Ok(_) => eprintln!(
-                        "[operax serve] routed {topic} -> {}: ok",
-                        outcome.deployment_id
-                    ),
-                    Err(e) => eprintln!(
-                        "[operax serve] routed {topic} -> {}: failed: {e:?}",
-                        outcome.deployment_id
-                    ),
+            let handles: Vec<_> = matched
+                .into_iter()
+                .map(|id| {
+                    let mgr = manager.clone();
+                    let payload = payload.clone();
+                    let topic = topic.clone();
+                    tokio::task::spawn_blocking(move || {
+                        let result = mgr.run_as(&id, payload, false, Some("business-event"));
+                        (topic, id, result)
+                    })
+                })
+                .collect();
+            for joined in futures::future::join_all(handles).await {
+                match joined {
+                    Ok((topic, id, Ok(_))) => {
+                        eprintln!("[operax serve] routed {topic} -> {id}: ok")
+                    }
+                    Ok((topic, id, Err(e))) => {
+                        eprintln!("[operax serve] routed {topic} -> {id}: failed: {e:?}")
+                    }
+                    Err(join_err) => eprintln!("[operax serve] route task panicked: {join_err}"),
                 }
             }
         }
