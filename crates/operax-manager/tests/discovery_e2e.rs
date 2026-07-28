@@ -86,7 +86,7 @@ impl operax_sorx_http::SorxClient for StubClient {
 // resolved URL just needs to be present for `deploy` to succeed.
 struct StubResolver;
 impl SorxResolver for StubResolver {
-    fn resolve(&self, _tenant: &str, _sor: &str) -> Option<String> {
+    fn resolve(&self, _env: Option<&str>, _tenant: &str, _sor: &str) -> Option<String> {
         Some("http://127.0.0.1:8099".into())
     }
 }
