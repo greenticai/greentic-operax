@@ -32,15 +32,29 @@ jobs:
         with:
           tool: cargo-binstall
       - name: Install coverage tools
+        env:
+          # binstall resolves releases through api.github.com. Unauthenticated
+          # requests are rate-limited per runner IP; on a 403 binstall does NOT
+          # fail, it silently falls back to `cargo install <tool>` from source
+          # WITHOUT --locked. cargo-nextest has a deliberate compile_error! that
+          # rejects exactly that, so the job burns ~11 min compiling then exits
+          # 70. Authenticating lifts the limit (see greenticai/greentic-cap #39).
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           # rust-cache restores ~/.cargo/.crates.toml but prunes ~/.cargo/bin of
           # binstall-installed binaries, so binstall says "already installed"
           # while the binary is gone. --force sidesteps that.
-          cargo binstall -y --force cargo-nextest
-          cargo binstall -y --force cargo-llvm-cov
-          cargo binstall -y --force greentic-dev
+          #
+          # --disable-strategies compile turns the source-build fallback into a
+          # hard, fast failure instead of a silent degradation. All three tools
+          # publish prebuilt binaries, so the compile strategy is never the
+          # legitimate path here.
+          cargo binstall -y --force --disable-strategies compile cargo-nextest
+          cargo binstall -y --force --disable-strategies compile cargo-llvm-cov
+          cargo binstall -y --force --disable-strategies compile greentic-dev
           command -v cargo-nextest
           command -v cargo-llvm-cov
+          command -v greentic-dev
           greentic-dev --version
       - run: greentic-dev coverage
       - uses: actions/upload-artifact@v4
